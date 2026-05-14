@@ -1,33 +1,57 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+
+const defaultTasks = [
+  { time: "4:00 AM", title: "Wake Up", category: "Morning", done: false },
+  { time: "4:00 - 4:30 AM", title: "Cleaning + Bath + Ready", category: "Morning", done: false },
+  { time: "4:30 - 5:00 AM", title: "Chanting - 4 Rounds", category: "Japa", done: false },
+  { time: "5:00 AM", title: "Mangala Arati", category: "Temple", done: false },
+  { time: "5:45 - 7:00 AM", title: "Japa - 9 Rounds", category: "Japa", done: false },
+  { time: "7:00 - 7:30 AM", title: "Reading", category: "Reading", done: false },
+  { time: "7:30 - 7:55 AM", title: "Chanting - 3 Rounds", category: "Japa", done: false },
+  { time: "7:55 - 8:15 AM", title: "Exercise", category: "Health", done: false },
+  { time: "8:20 - 9:10 AM", title: "Bhagavatam Class", category: "Hearing", done: false },
+  { time: "Before 9:30 AM", title: "Prasadam + Lecture", category: "Prasadam", done: false },
+  { time: "10:00 AM - 1:00 PM", title: "Job / Service Work", category: "Work", done: false },
+  { time: "1:00 - 2:00 PM", title: "Lunch + 30 Min Reading", category: "Reading", done: false },
+  { time: "2:00 - 7:00 PM", title: "Job / Service Work", category: "Work", done: false },
+  { time: "7:00 - 7:30 PM", title: "Dinner Prasadam", category: "Prasadam", done: false },
+  { time: "7:30 - 8:30 PM", title: "Evening Reading", category: "Reading", done: false },
+  { time: "8:30 - 9:00 PM", title: "Service / Seva", category: "Seva", done: false },
+];
 
 export default function App() {
-  const [tasks, setTasks] = useState([
-    { time: "4:00 AM", title: "Wake Up", done: false },
-    { time: "4:00 - 4:30 AM", title: "Stomach Cleaning + Bath + Ready", done: false },
-    { time: "4:30 - 5:00 AM", title: "Chanting - 4 Rounds", done: false },
-    { time: "5:00 AM", title: "Mangala Arati", done: false },
-    { time: "5:45 - 7:00 AM", title: "Japa - 9 Rounds", done: false },
-    { time: "7:00 - 7:30 AM", title: "Reading", done: false },
-    { time: "7:30 - 7:55 AM", title: "Chanting - 3 Rounds", done: false },
-    { time: "7:55 - 8:15 AM", title: "Exercise", done: false },
-    { time: "8:20 - 9:10 AM", title: "Bhagavatam Class", done: false },
-    { time: "Before 9:30 AM", title: "Prasadam + Lecture Hearing", done: false },
-    { time: "10:00 AM - 1:00 PM", title: "Job / Service Work", done: false },
-    { time: "1:00 - 2:00 PM", title: "Lunch + 30 Min Reading", done: false },
-    { time: "2:00 - 7:00 PM", title: "Job / Service Work", done: false },
-    { time: "7:00 - 7:30 PM", title: "Dinner Prasadam", done: false },
-    { time: "7:30 - 8:30 PM", title: "Evening Reading", done: false },
-    { time: "8:30 - 9:00 PM", title: "Service / Seva", done: false },
-  ]);
-
+  const [screen, setScreen] = useState("home");
+  const [dark, setDark] = useState(false);
+  const [tasks, setTasks] = useState(defaultTasks);
   const [newTime, setNewTime] = useState("");
   const [newTask, setNewTask] = useState("");
   const [notes, setNotes] = useState("");
+  const [focusMode, setFocusMode] = useState(false);
+  const [reminders, setReminders] = useState(true);
+  const [streak, setStreak] = useState(3);
+
+  useEffect(() => {
+    const saved = localStorage.getItem("sadhana-v3");
+    if (saved) {
+      const data = JSON.parse(saved);
+      setTasks(data.tasks || defaultTasks);
+      setNotes(data.notes || "");
+      setDark(data.dark || false);
+      setStreak(data.streak || 3);
+    }
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem(
+      "sadhana-v3",
+      JSON.stringify({ tasks, notes, dark, streak })
+    );
+  }, [tasks, notes, dark, streak]);
 
   const completed = tasks.filter((t) => t.done).length;
   const progress = Math.round((completed / tasks.length) * 100);
   const score = Math.min(100, Math.round(progress * 1.1));
-  const missed = tasks.filter((t) => !t.done);
+  const pending = tasks.length - completed;
 
   const toggleTask = (index) => {
     const updated = [...tasks];
@@ -37,260 +61,452 @@ export default function App() {
 
   const addTask = () => {
     if (!newTime || !newTask) return;
-    setTasks([...tasks, { time: newTime, title: newTask, done: false }]);
+    setTasks([
+      ...tasks,
+      { time: newTime, title: newTask, category: "Custom", done: false },
+    ]);
     setNewTime("");
     setNewTask("");
   };
 
-  const reportText = `Hare Krishna Prabhuji 🙏
+  const resetDay = () => {
+    setTasks(tasks.map((t) => ({ ...t, done: false })));
+    setNotes("");
+  };
+
+  const sendWhatsApp = () => {
+    const report = `Hare Krishna Prabhuji 🙏
+
 Today's Sadhana Report:
 Progress: ${progress}%
 Daily Score: ${score}/100
 Completed: ${completed}/${tasks.length}
+Pending: ${pending}
 
 Notes:
 ${notes || "No notes added."}`;
 
-  const sendWhatsApp = () => {
-    const url = `https://wa.me/?text=${encodeURIComponent(reportText)}`;
-    window.open(url, "_blank");
+    window.open(`https://wa.me/?text=${encodeURIComponent(report)}`, "_blank");
   };
 
+  const theme = dark ? darkTheme : lightTheme;
+
   return (
-    <div style={styles.page}>
-      <div style={styles.app}>
-        <h1 style={styles.title}>Sadhana OS</h1>
-        <p style={styles.subtitle}>Daily Krishna Conscious Engagement</p>
-
-        <div style={styles.progressBox}>
-          <div style={styles.row}>
-            <strong>Daily Progress</strong>
-            <strong>{progress}%</strong>
+    <div style={{ ...styles.page, background: theme.bg, color: theme.text }}>
+      <div style={{ ...styles.phone, background: theme.card }}>
+        <header style={styles.header}>
+          <div>
+            <h1 style={styles.title}>Sadhana OS</h1>
+            <p style={styles.subtitle}>Personal Krishna Conscious Tracker</p>
           </div>
-          <div style={styles.bar}>
-            <div style={{ ...styles.fill, width: `${progress}%` }} />
-          </div>
-        </div>
+          <button style={styles.iconBtn} onClick={() => setDark(!dark)}>
+            {dark ? "☀️" : "🌙"}
+          </button>
+        </header>
 
-        <div style={styles.grid}>
-          <div style={styles.card}>
-            <p>Daily Score</p>
-            <h2>{score}</h2>
-          </div>
-          <div style={styles.card}>
-            <p>24H Engagement</p>
-            <h2>18h</h2>
-          </div>
-        </div>
+        {screen === "home" && (
+          <>
+            <div style={styles.hero}>
+              <p style={styles.label}>Daily Progress</p>
+              <h2 style={styles.big}>{progress}%</h2>
+              <div style={styles.bar}>
+                <div style={{ ...styles.fill, width: `${progress}%` }} />
+              </div>
+            </div>
 
-        <h3 style={styles.sectionTitle}>Today’s Sadhana</h3>
+            <div style={styles.grid}>
+              <Card title="Score" value={`${score}/100`} />
+              <Card title="Streak" value={`${streak} Days`} />
+              <Card title="Pending" value={pending} />
+              <Card title="Engagement" value="18h" />
+            </div>
 
-        {tasks.map((task, index) => (
-          <div key={index} style={task.done ? styles.taskDone : styles.task}>
+            <div style={styles.section}>
+              <h3>Today’s Sadhana</h3>
+              {tasks.map((task, index) => (
+                <div key={index} style={task.done ? styles.doneTask : styles.task}>
+                  <input
+                    type="checkbox"
+                    checked={task.done}
+                    onChange={() => toggleTask(index)}
+                  />
+                  <div>
+                    <small>{task.time} • {task.category}</small>
+                    <p>{task.title}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+
+        {screen === "add" && (
+          <div style={styles.section}>
+            <h2>Add / Customize Sadhana</h2>
             <input
-              type="checkbox"
-              checked={task.done}
-              onChange={() => toggleTask(index)}
+              style={styles.input}
+              placeholder="Time e.g. 9:30 PM"
+              value={newTime}
+              onChange={(e) => setNewTime(e.target.value)}
             />
-            <div>
-              <small style={styles.time}>{task.time}</small>
-              <p style={styles.taskTitle}>{task.title}</p>
+            <input
+              style={styles.input}
+              placeholder="Activity e.g. Extra 4 Rounds"
+              value={newTask}
+              onChange={(e) => setNewTask(e.target.value)}
+            />
+            <button style={styles.orangeBtn} onClick={addTask}>Add Activity</button>
+            <button style={styles.grayBtn} onClick={resetDay}>Reset Today</button>
+          </div>
+        )}
+
+        {screen === "insights" && (
+          <div style={styles.section}>
+            <h2>AI Assistant</h2>
+            <div style={styles.aiBox}>
+              <h3>Today’s Suggestion</h3>
+              <p>
+                Morning is your strongest foundation. Protect phone usage before
+                Japa, keep lecture hearing during bath/cleaning/prasadam, and recover
+                one pending task before sleep.
+              </p>
+            </div>
+
+            <h3>Sadhana Chart</h3>
+            <div style={styles.chart}>
+              {[45, 60, 52, 78, 70, progress].map((v, i) => (
+                <div key={i} style={styles.chartItem}>
+                  <div style={{ ...styles.chartBar, height: `${v}%` }} />
+                  <small>D{i + 1}</small>
+                </div>
+              ))}
+            </div>
+
+            <div style={styles.recovery}>
+              <h3>Missed Recovery Mode</h3>
+              <p>{pending} pending activities. Complete 1 before dinner and 1 before sleep.</p>
             </div>
           </div>
-        ))}
+        )}
 
-        <div style={styles.addBox}>
-          <h3>Add New Sadhana</h3>
-          <input
-            style={styles.input}
-            placeholder="Time e.g. 9:30 PM"
-            value={newTime}
-            onChange={(e) => setNewTime(e.target.value)}
-          />
-          <input
-            style={styles.input}
-            placeholder="Activity e.g. Extra Japa"
-            value={newTask}
-            onChange={(e) => setNewTask(e.target.value)}
-          />
-          <button style={styles.orangeButton} onClick={addTask}>
-            Add Activity
-          </button>
-        </div>
+        {screen === "ekadashi" && (
+          <div style={styles.section}>
+            <h2>Ekadashi Dashboard</h2>
+            <div style={styles.ekaCard}>
+              <p style={styles.label}>Special Mode</p>
+              <h2>Extra Japa + No Grain</h2>
+              <p>Track fasting, extra rounds, reading, and parana reminder.</p>
+            </div>
 
-        <div style={styles.recoveryBox}>
-          <h3>Missed Sadhana Recovery</h3>
-          <p>{missed.length} activities pending today.</p>
-          <small>
-            Suggestion: Complete one missed activity before dinner or before sleep.
-          </small>
-        </div>
+            {["No Grain", "Extra 16 Rounds", "Ekadashi Katha", "Less Phone Use", "Parana Reminder"].map((x, i) => (
+              <div key={i} style={styles.task}>
+                <input type="checkbox" />
+                <p>{x}</p>
+              </div>
+            ))}
+          </div>
+        )}
 
-        <div style={styles.aiBox}>
-          <h3>AI Discipline Suggestion</h3>
-          <p>
-            Protect your morning first. Avoid phone usage before Japa and keep
-            lecture hearing active during bath, cleaning, and prasadam.
-          </p>
-        </div>
+        {screen === "focus" && (
+          <div style={styles.section}>
+            <h2>Japa Focus Mode</h2>
+            <div style={focusMode ? styles.focusOn : styles.focusOff}>
+              <h3>{focusMode ? "Focus Mode Active" : "Focus Mode Off"}</h3>
+              <p>
+                During Japa, avoid Instagram, Shorts, unnecessary browsing, and chat distractions.
+              </p>
+            </div>
+            <button style={styles.orangeBtn} onClick={() => setFocusMode(!focusMode)}>
+              {focusMode ? "Stop Focus Mode" : "Start Focus Mode"}
+            </button>
 
-        <textarea
-          style={styles.textarea}
-          placeholder="Daily notes / realization / struggle..."
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
-        />
+            <div style={styles.aiBox}>
+              <h3>Reminder Settings</h3>
+              <p>Mock reminders are {reminders ? "ON" : "OFF"}.</p>
+              <button style={styles.grayBtn} onClick={() => setReminders(!reminders)}>
+                Toggle Reminders
+              </button>
+            </div>
+          </div>
+        )}
 
-        <button style={styles.whatsappButton} onClick={sendWhatsApp}>
-          Send WhatsApp Report
-        </button>
+        {screen === "report" && (
+          <div style={styles.section}>
+            <h2>Daily Report</h2>
+            <textarea
+              style={styles.textarea}
+              placeholder="Daily notes / realization / struggle..."
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+            />
+            <button style={styles.whatsappBtn} onClick={sendWhatsApp}>
+              Send WhatsApp Report
+            </button>
+          </div>
+        )}
+
+        <nav style={styles.nav}>
+          <Nav label="Home" icon="🏠" active={screen === "home"} onClick={() => setScreen("home")} />
+          <Nav label="Add" icon="➕" active={screen === "add"} onClick={() => setScreen("add")} />
+          <Nav label="AI" icon="🤖" active={screen === "insights"} onClick={() => setScreen("insights")} />
+          <Nav label="Eka" icon="🌙" active={screen === "ekadashi"} onClick={() => setScreen("ekadashi")} />
+          <Nav label="Focus" icon="🧘" active={screen === "focus"} onClick={() => setScreen("focus")} />
+          <Nav label="Report" icon="📤" active={screen === "report"} onClick={() => setScreen("report")} />
+        </nav>
       </div>
     </div>
   );
 }
 
+function Card({ title, value }) {
+  return (
+    <div style={styles.card}>
+      <p>{title}</p>
+      <h2>{value}</h2>
+    </div>
+  );
+}
+
+function Nav({ label, icon, active, onClick }) {
+  return (
+    <button onClick={onClick} style={active ? styles.navActive : styles.navBtn}>
+      <span>{icon}</span>
+      <small>{label}</small>
+    </button>
+  );
+}
+
+const lightTheme = {
+  bg: "#fff7ed",
+  card: "#ffffff",
+  text: "#1f2937",
+};
+
+const darkTheme = {
+  bg: "#111827",
+  card: "#1f2937",
+  text: "#f9fafb",
+};
+
 const styles = {
   page: {
     minHeight: "100vh",
-    background: "#fff7ed",
-    padding: "20px",
+    padding: 16,
     fontFamily: "Arial, sans-serif",
   },
-  app: {
-    maxWidth: "430px",
+  phone: {
+    maxWidth: 430,
     margin: "0 auto",
-    background: "#ffffff",
-    borderRadius: "28px",
-    padding: "20px",
-    boxShadow: "0 10px 35px rgba(0,0,0,0.12)",
+    minHeight: "92vh",
+    borderRadius: 32,
+    padding: 18,
+    boxShadow: "0 20px 50px rgba(0,0,0,0.18)",
+    paddingBottom: 90,
   },
-  title: {
-    textAlign: "center",
-    marginBottom: "4px",
-  },
-  subtitle: {
-    textAlign: "center",
-    color: "#666",
-    fontSize: "14px",
-    marginBottom: "20px",
-  },
-  progressBox: {
-    background: "#fed7aa",
-    padding: "16px",
-    borderRadius: "20px",
-    marginBottom: "16px",
-  },
-  row: {
+  header: {
     display: "flex",
     justifyContent: "space-between",
-    marginBottom: "10px",
+    alignItems: "center",
   },
+  title: { margin: 0, fontSize: 28 },
+  subtitle: { marginTop: 4, color: "#777", fontSize: 13 },
+  iconBtn: {
+    border: "none",
+    borderRadius: 999,
+    padding: 12,
+    fontSize: 18,
+    background: "#ffedd5",
+  },
+  hero: {
+    background: "linear-gradient(135deg,#fb923c,#f97316)",
+    color: "white",
+    borderRadius: 28,
+    padding: 20,
+    marginTop: 18,
+  },
+  label: { fontSize: 13, opacity: 0.85 },
+  big: { fontSize: 42, margin: "8px 0" },
   bar: {
-    height: "12px",
-    background: "#fff",
-    borderRadius: "20px",
+    height: 12,
+    background: "rgba(255,255,255,0.45)",
+    borderRadius: 30,
     overflow: "hidden",
   },
-  fill: {
-    height: "100%",
-    background: "#f97316",
-  },
+  fill: { height: "100%", background: "white", borderRadius: 30 },
   grid: {
     display: "grid",
     gridTemplateColumns: "1fr 1fr",
-    gap: "10px",
-    marginBottom: "20px",
+    gap: 12,
+    marginTop: 14,
   },
   card: {
     background: "#ffedd5",
-    padding: "15px",
-    borderRadius: "18px",
+    borderRadius: 22,
+    padding: 15,
     textAlign: "center",
+    color: "#1f2937",
   },
-  sectionTitle: {
-    marginTop: "10px",
-  },
+  section: { marginTop: 22 },
   task: {
     display: "flex",
-    gap: "12px",
-    alignItems: "flex-start",
-    background: "#fff",
-    border: "1px solid #fed7aa",
-    borderRadius: "16px",
-    padding: "12px",
-    marginBottom: "10px",
-  },
-  taskDone: {
-    display: "flex",
-    gap: "12px",
-    alignItems: "flex-start",
-    background: "#dcfce7",
-    border: "1px solid #86efac",
-    borderRadius: "16px",
-    padding: "12px",
-    marginBottom: "10px",
-  },
-  time: {
-    color: "#777",
-  },
-  taskTitle: {
-    margin: "4px 0 0",
-    fontWeight: "600",
-  },
-  addBox: {
+    gap: 12,
+    alignItems: "center",
     background: "#fff7ed",
+    color: "#1f2937",
     border: "1px solid #fed7aa",
-    borderRadius: "20px",
-    padding: "15px",
-    marginTop: "20px",
+    borderRadius: 18,
+    padding: 13,
+    marginBottom: 10,
+  },
+  doneTask: {
+    display: "flex",
+    gap: 12,
+    alignItems: "center",
+    background: "#dcfce7",
+    color: "#1f2937",
+    border: "1px solid #86efac",
+    borderRadius: 18,
+    padding: 13,
+    marginBottom: 10,
   },
   input: {
     width: "100%",
-    padding: "12px",
-    borderRadius: "12px",
-    border: "1px solid #fdba74",
-    marginBottom: "10px",
     boxSizing: "border-box",
+    padding: 14,
+    borderRadius: 16,
+    border: "1px solid #fdba74",
+    marginBottom: 12,
   },
-  orangeButton: {
+  orangeBtn: {
     width: "100%",
     background: "#f97316",
-    color: "#fff",
+    color: "white",
     border: "none",
-    padding: "14px",
-    borderRadius: "14px",
+    padding: 15,
+    borderRadius: 18,
     fontWeight: "bold",
+    marginTop: 8,
   },
-  recoveryBox: {
-    background: "#fef3c7",
-    padding: "15px",
-    borderRadius: "18px",
-    marginTop: "16px",
+  grayBtn: {
+    width: "100%",
+    background: "#e5e7eb",
+    color: "#111827",
+    border: "none",
+    padding: 14,
+    borderRadius: 18,
+    fontWeight: "bold",
+    marginTop: 10,
   },
   aiBox: {
     background: "#eef2ff",
-    padding: "15px",
-    borderRadius: "18px",
-    marginTop: "16px",
+    color: "#1f2937",
+    borderRadius: 20,
+    padding: 16,
+    marginBottom: 16,
+  },
+  recovery: {
+    background: "#fef3c7",
+    color: "#1f2937",
+    borderRadius: 20,
+    padding: 16,
+    marginTop: 16,
+  },
+  chart: {
+    height: 160,
+    display: "flex",
+    alignItems: "end",
+    gap: 10,
+    background: "#fff7ed",
+    borderRadius: 22,
+    padding: 15,
+  },
+  chartItem: {
+    flex: 1,
+    height: "100%",
+    display: "flex",
+    flexDirection: "column",
+    justifyContent: "end",
+    alignItems: "center",
+  },
+  chartBar: {
+    width: "100%",
+    background: "#fb923c",
+    borderRadius: "14px 14px 4px 4px",
+  },
+  ekaCard: {
+    background: "linear-gradient(135deg,#7c3aed,#c084fc)",
+    color: "white",
+    borderRadius: 26,
+    padding: 20,
+    marginBottom: 16,
+  },
+  focusOn: {
+    background: "#dcfce7",
+    color: "#1f2937",
+    borderRadius: 22,
+    padding: 18,
+    marginBottom: 14,
+  },
+  focusOff: {
+    background: "#fee2e2",
+    color: "#1f2937",
+    borderRadius: 22,
+    padding: 18,
+    marginBottom: 14,
   },
   textarea: {
     width: "100%",
-    minHeight: "90px",
-    padding: "12px",
-    borderRadius: "16px",
-    border: "1px solid #ddd",
-    marginTop: "16px",
+    minHeight: 150,
     boxSizing: "border-box",
+    borderRadius: 18,
+    padding: 14,
+    border: "1px solid #ddd",
   },
-  whatsappButton: {
+  whatsappBtn: {
     width: "100%",
     background: "#22c55e",
-    color: "#fff",
+    color: "white",
     border: "none",
-    padding: "15px",
-    borderRadius: "18px",
-    fontSize: "16px",
+    padding: 16,
+    borderRadius: 20,
     fontWeight: "bold",
-    marginTop: "16px",
+    marginTop: 14,
+  },
+  nav: {
+    position: "fixed",
+    left: "50%",
+    bottom: 14,
+    transform: "translateX(-50%)",
+    width: "min(430px, calc(100% - 24px))",
+    background: "#ffffff",
+    borderRadius: 24,
+    padding: 8,
+    display: "grid",
+    gridTemplateColumns: "repeat(6,1fr)",
+    gap: 4,
+    boxShadow: "0 10px 30px rgba(0,0,0,0.18)",
+  },
+  navBtn: {
+    border: "none",
+    background: "transparent",
+    padding: 8,
+    borderRadius: 16,
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    gap: 2,
+    color: "#555",
+  },
+  navActive: {
+    border: "none",
+    background: "#ffedd5",
+    padding: 8,
+    borderRadius: 16,
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    gap: 2,
+    color: "#f97316",
+    fontWeight: "bold",
   },
 };
