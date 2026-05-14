@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { db, auth } from './firebase'; // Firebase import
 
 const defaultTasks = [
   { time: "4:00 AM", title: "Wake Up", category: "Morning", done: false },
