@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from "react";
 import { db, auth } from './firebase';
 import { doc, onSnapshot, updateDoc, setDoc } from "firebase/firestore";
 import { GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "firebase/auth";
+import lang from './lang';
 
 const lightTheme = {
   bg: "#fff7ed", card: "#ffffff", text: "#1f2937", sub: "#6b7280",
@@ -23,6 +24,7 @@ export default function App() {
   const [tasks, setTasks] = useState([]);
   const [screen, setScreen] = useState("home");
   const [dark, setDark] = useState(false);
+  const [hindi, setHindi] = useState(false);
   const [newTime, setNewTime] = useState("");
   const [newTask, setNewTask] = useState("");
   const [notes, setNotes] = useState("");
@@ -35,6 +37,7 @@ export default function App() {
   const timerRef = useRef(null);
 
   const theme = dark ? darkTheme : lightTheme;
+  const t = hindi ? lang.hi : lang.en;
 
   // Auth listener
   useEffect(() => {
@@ -45,7 +48,6 @@ export default function App() {
     return () => unsub();
   }, []);
 
-  // Google Login
   const loginWithGoogle = async () => {
     const provider = new GoogleAuthProvider();
     try {
@@ -62,7 +64,7 @@ export default function App() {
     setStreak(0);
   };
 
-  // Firestore fetch — user specific
+  // Firestore
   useEffect(() => {
     if (!user) return;
     const docRef = doc(db, "sadhna-os", user.uid);
@@ -80,7 +82,7 @@ export default function App() {
     return () => unsub();
   }, [user, selectedDate]);
 
-  // Streak from localStorage
+  // Streak
   useEffect(() => {
     if (!user) return;
     const saved = localStorage.getItem(`sadhna_streak_${user.uid}`);
@@ -127,15 +129,11 @@ export default function App() {
   const addTask = async () => {
     if (!user || !newTime || !newTask) return;
     const entry = { time: newTime, title: newTask, done: false, date: selectedDate.toDateString(), category: "Custom" };
-    const updatedTasks = [...tasks, entry];
-    setTasks(updatedTasks);
+    setTasks([...tasks, entry]);
     try {
       const docRef = doc(db, "sadhna-os", user.uid);
-      try {
-        await updateDoc(docRef, { [newTask]: entry });
-      } catch {
-        await setDoc(docRef, { [newTask]: entry });
-      }
+      try { await updateDoc(docRef, { [newTask]: entry }); }
+      catch { await setDoc(docRef, { [newTask]: entry }); }
     } catch (e) { console.error(e); }
     setNewTime(""); setNewTask("");
   };
@@ -194,7 +192,7 @@ export default function App() {
     window.open(`https://wa.me/?text=${encodeURIComponent(report)}`, "_blank");
   };
 
-  // Ekadashi dates
+  // Ekadashi
   const ekadashiDates = [
     { name: "Mohini Ekadashi", date: "May 8, 2026" },
     { name: "Apara Ekadashi", date: "May 23, 2026" },
@@ -214,7 +212,9 @@ export default function App() {
     .slice(0, 5);
   const daysUntil = (d) => {
     const diff = Math.ceil((d - today) / (1000 * 60 * 60 * 24));
-    return diff === 0 ? "Aaj!" : diff === 1 ? "Kal" : `${diff} din mein`;
+    if (diff === 0) return t.today;
+    if (diff === 1) return t.tomorrow;
+    return `${diff} ${t.daysLeft}`;
   };
 
   const completedCount = tasks.filter((t) => t.done).length;
@@ -228,7 +228,8 @@ export default function App() {
     header: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px 20px 12px", borderBottom: `1px solid ${theme.border}` },
     title: { margin: 0, fontSize: "20px", fontWeight: "700", color: ORANGE },
     subtitle: { margin: "2px 0 0", fontSize: "11px", color: theme.sub },
-    iconBtn: { background: "transparent", border: `1px solid ${theme.border}`, borderRadius: "50%", width: "36px", height: "36px", cursor: "pointer", fontSize: "16px", display: "flex", alignItems: "center", justifyContent: "center" },
+    headerBtns: { display: "flex", gap: "8px", alignItems: "center" },
+    iconBtn: { background: "transparent", border: `1px solid ${theme.border}`, borderRadius: "50%", width: "36px", height: "36px", cursor: "pointer", fontSize: "14px", display: "flex", alignItems: "center", justifyContent: "center", color: theme.text, fontWeight: "600" },
     calendar: { padding: "10px 20px", borderBottom: `1px solid ${theme.border}` },
     dateInput: { width: "100%", padding: "8px 12px", borderRadius: "10px", border: `1px solid ${theme.border}`, background: theme.input, color: theme.text, fontSize: "14px", outline: "none", boxSizing: "border-box" },
     scrollArea: { flex: 1, overflowY: "auto", padding: "16px 20px" },
@@ -270,6 +271,7 @@ export default function App() {
     loginTitle: { fontSize: "32px", fontWeight: "800", color: ORANGE, margin: "0 0 8px" },
     loginSub: { fontSize: "14px", color: theme.sub, margin: "0 0 32px" },
     googleBtn: { width: "100%", padding: "14px", background: "#fff", color: "#1f2937", border: "1px solid #e5e7eb", borderRadius: "12px", fontSize: "15px", fontWeight: "600", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "10px", boxShadow: "0 2px 8px rgba(0,0,0,0.08)" },
+    langToggle: { background: hindi ? ORANGE : "transparent", border: `1px solid ${hindi ? ORANGE : theme.border}`, borderRadius: "20px", padding: "4px 10px", cursor: "pointer", fontSize: "12px", fontWeight: "600", color: hindi ? "#fff" : theme.sub, transition: "all 0.2s" },
   };
 
   // Loading
@@ -290,8 +292,8 @@ export default function App() {
       <div style={s.loginPage}>
         <div style={s.loginCard}>
           <p style={{ fontSize: "56px", margin: "0 0 8px" }}>🕉️</p>
-          <h1 style={s.loginTitle}>Sadhana OS</h1>
-          <p style={s.loginSub}>Krishna Conscious Daily Tracker</p>
+          <h1 style={s.loginTitle}>{t.loginTitle}</h1>
+          <p style={s.loginSub}>{t.loginSub}</p>
           <button style={s.googleBtn} onClick={loginWithGoogle}>
             <svg width="20" height="20" viewBox="0 0 48 48">
               <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
@@ -299,11 +301,12 @@ export default function App() {
               <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
               <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.31-8.16 2.31-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
             </svg>
-            Google se Login karo
+            {t.loginBtn}
           </button>
-          <p style={{ margin: "20px 0 0", fontSize: "12px", color: theme.sub }}>
-            Apni sadhna track karo, progress dekho 🙏
-          </p>
+          <p style={{ margin: "20px 0 0", fontSize: "12px", color: theme.sub }}>{t.loginFooter}</p>
+          <button style={{ ...s.langToggle, marginTop: "16px" }} onClick={() => setHindi(!hindi)}>
+            {hindi ? "EN" : "हिं"}
+          </button>
         </div>
       </div>
     );
@@ -321,10 +324,15 @@ export default function App() {
             )}
             <div>
               <h1 style={s.title}>Sadhana OS 🕉️</h1>
-              <p style={s.subtitle}>Hare Krishna, {user.displayName?.split(" ")[0]}!</p>
+              <p style={s.subtitle}>{t.greeting}, {user.displayName?.split(" ")[0]}!</p>
             </div>
           </div>
-          <button style={s.iconBtn} onClick={() => setDark(!dark)}>{dark ? "☀️" : "🌙"}</button>
+          <div style={s.headerBtns}>
+            <button style={s.langToggle} onClick={() => setHindi(!hindi)}>
+              {hindi ? "EN" : "हिं"}
+            </button>
+            <button style={s.iconBtn} onClick={() => setDark(!dark)}>{dark ? "☀️" : "🌙"}</button>
+          </div>
         </header>
 
         <div style={s.calendar}>
@@ -337,21 +345,21 @@ export default function App() {
           {screen === "home" && (
             <>
               <div style={s.hero}>
-                <p style={s.heroLabel}>Daily Progress</p>
+                <p style={s.heroLabel}>{t.dailyProgress}</p>
                 <h2 style={s.heroBig}>{progress}%</h2>
                 <div style={s.bar}><div style={{ ...s.fill, width: `${progress}%` }} /></div>
               </div>
               <div style={s.grid}>
-                <StatCard label="Score" value={`${score}/100`} s={s} />
-                <StatCard label="Streak" value={`${streak} 🔥`} s={s} />
-                <StatCard label="Done" value={`${completedCount}/${tasks.length}`} s={s} />
-                <StatCard label="Pending" value={pendingCount} s={s} />
+                <StatCard label={t.score} value={`${score}/100`} s={s} />
+                <StatCard label={t.streak} value={`${streak} 🔥`} s={s} />
+                <StatCard label={t.done} value={`${completedCount}/${tasks.length}`} s={s} />
+                <StatCard label={t.pending} value={pendingCount} s={s} />
               </div>
-              <h3 style={s.sectionTitle}>Today's Sadhana</h3>
+              <h3 style={s.sectionTitle}>{t.todaySadhana}</h3>
               {tasks.length === 0 && (
                 <div style={s.emptyState}>
                   <p style={{ fontSize: "32px", margin: "0 0 8px" }}>🙏</p>
-                  <p style={{ margin: 0 }}>Koi task nahi. "Add" tab se add karo.</p>
+                  <p style={{ margin: 0 }}>{t.noTask}</p>
                 </div>
               )}
               {tasks.map((task, i) => (
@@ -364,7 +372,7 @@ export default function App() {
                   <button style={s.deleteBtn} onClick={() => deleteTask(i)}>✕</button>
                 </div>
               ))}
-              <h3 style={{ ...s.sectionTitle, marginTop: "20px" }}>Weekly Overview</h3>
+              <h3 style={{ ...s.sectionTitle, marginTop: "20px" }}>{t.weeklyOverview}</h3>
               <div style={s.chart}>
                 {weeklyProgress.map((v, i) => {
                   const isToday = i === new Date().getDay();
@@ -386,14 +394,14 @@ export default function App() {
           {/* ADD */}
           {screen === "add" && (
             <>
-              <h3 style={s.sectionTitle}>Sadhana Add / Edit karo</h3>
-              <input style={s.input} placeholder="Time (e.g. 5:00 AM)" value={newTime} onChange={(e) => setNewTime(e.target.value)} />
-              <input style={s.input} placeholder="Activity (e.g. 16 rounds japa)" value={newTask} onChange={(e) => setNewTask(e.target.value)} />
-              <button style={s.orangeBtn} onClick={addTask}>+ Activity Add Karo</button>
-              <button style={s.grayBtn} onClick={resetDay}>🔄 Aaj Reset Karo</button>
+              <h3 style={s.sectionTitle}>{t.addTitle}</h3>
+              <input style={s.input} placeholder={t.timePlaceholder} value={newTime} onChange={(e) => setNewTime(e.target.value)} />
+              <input style={s.input} placeholder={t.activityPlaceholder} value={newTask} onChange={(e) => setNewTask(e.target.value)} />
+              <button style={s.orangeBtn} onClick={addTask}>{t.addBtn}</button>
+              <button style={s.grayBtn} onClick={resetDay}>{t.resetBtn}</button>
               {tasks.length > 0 && (
                 <>
-                  <h3 style={{ ...s.sectionTitle, marginTop: "8px" }}>Current Tasks</h3>
+                  <h3 style={{ ...s.sectionTitle, marginTop: "8px" }}>{t.currentTasks}</h3>
                   {tasks.map((task, i) => (
                     <div key={i} style={s.task}>
                       <div style={{ flex: 1 }}>
@@ -411,7 +419,7 @@ export default function App() {
           {/* TIMER */}
           {screen === "focus" && (
             <>
-              <h3 style={s.sectionTitle}>Sadhana Timer</h3>
+              <h3 style={s.sectionTitle}>{t.timerTitle}</h3>
               <select style={{ ...s.input, marginBottom: "4px" }} value={timerLabel} onChange={(e) => setTimerLabel(e.target.value)}>
                 <option>Japa</option>
                 <option>Meditation</option>
@@ -420,15 +428,15 @@ export default function App() {
                 <option>Yoga</option>
                 <option>Svadhyaya</option>
               </select>
-              <p style={{ margin: "4px 0 0", fontSize: "12px", color: theme.sub, textAlign: "center" }}>{timerLabel} chal raha hai...</p>
+              <p style={{ margin: "4px 0 0", fontSize: "12px", color: theme.sub, textAlign: "center" }}>{timerLabel} {t.timerRunning}</p>
               <div style={s.timerDisplay}>{formatTime(timerSecs)}</div>
               <div style={s.timerRow}>
-                <button style={{ ...s.orangeBtn, margin: 0, flex: 1 }} onClick={timerRunning ? pauseTimer : startTimer}>{timerRunning ? "⏸ Pause" : "▶ Start"}</button>
-                <button style={{ ...s.grayBtn, margin: 0, flex: 1 }} onClick={resetTimer}>↺ Reset</button>
+                <button style={{ ...s.orangeBtn, margin: 0, flex: 1 }} onClick={timerRunning ? pauseTimer : startTimer}>{timerRunning ? t.pauseBtn : t.startBtn}</button>
+                <button style={{ ...s.grayBtn, margin: 0, flex: 1 }} onClick={resetTimer}>{t.resetTimerBtn}</button>
               </div>
               {timerSecs > 0 && !timerRunning && (
                 <div style={{ background: dark ? "#052e16" : "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: "12px", padding: "14px", textAlign: "center", marginTop: "8px" }}>
-                  <p style={{ margin: 0, color: "#16a34a", fontWeight: "600" }}>🙏 {timerLabel} complete! {formatTime(timerSecs)} ki sadhna hui.</p>
+                  <p style={{ margin: 0, color: "#16a34a", fontWeight: "600" }}>🙏 {timerLabel} {t.timerDone} {formatTime(timerSecs)}</p>
                 </div>
               )}
             </>
@@ -437,8 +445,8 @@ export default function App() {
           {/* EKADASHI */}
           {screen === "ekadashi" && (
             <>
-              <h3 style={s.sectionTitle}>🌙 Aane Wali Ekadashi</h3>
-              <p style={{ margin: "0 0 16px", fontSize: "13px", color: theme.sub }}>2026 ki upcoming Ekadashi dates</p>
+              <h3 style={s.sectionTitle}>{t.ekTitle}</h3>
+              <p style={{ margin: "0 0 16px", fontSize: "13px", color: theme.sub }}>{t.ekSubtitle}</p>
               {upcoming.map((e, i) => (
                 <div key={i} style={s.ekCard}>
                   <div>
@@ -454,44 +462,44 @@ export default function App() {
           {/* REPORT */}
           {screen === "report" && (
             <>
-              <h3 style={s.sectionTitle}>📤 Sadhana Report</h3>
+              <h3 style={s.sectionTitle}>{t.reportTitle}</h3>
               <div style={s.hero}>
-                <p style={s.heroLabel}>Aaj ka Score</p>
+                <p style={s.heroLabel}>{t.todayScore}</p>
                 <h2 style={s.heroBig}>{score}/100</h2>
                 <div style={s.bar}><div style={{ ...s.fill, width: `${progress}%` }} /></div>
                 <div style={{ display: "flex", gap: "16px", marginTop: "12px" }}>
-                  <span style={{ fontSize: "13px", color: theme.sub }}>✅ Done: <b style={{ color: theme.text }}>{completedCount}</b></span>
-                  <span style={{ fontSize: "13px", color: theme.sub }}>⏳ Pending: <b style={{ color: theme.text }}>{pendingCount}</b></span>
-                  <span style={{ fontSize: "13px", color: theme.sub }}>🔥 Streak: <b style={{ color: ORANGE }}>{streak}</b></span>
+                  <span style={{ fontSize: "13px", color: theme.sub }}>✅ {t.done}: <b style={{ color: theme.text }}>{completedCount}</b></span>
+                  <span style={{ fontSize: "13px", color: theme.sub }}>⏳ {t.pending}: <b style={{ color: theme.text }}>{pendingCount}</b></span>
+                  <span style={{ fontSize: "13px", color: theme.sub }}>🔥 {t.streak}: <b style={{ color: ORANGE }}>{streak}</b></span>
                 </div>
               </div>
-              <label style={{ fontSize: "13px", color: theme.sub, display: "block", marginBottom: "6px" }}>Notes (WhatsApp mein jayega)</label>
-              <textarea style={s.textarea} placeholder="Aaj ki sadhna kaisi rahi?" value={notes} onChange={(e) => setNotes(e.target.value)} />
-              <button style={s.greenBtn} onClick={sendWhatsApp}>📲 WhatsApp par bhejo</button>
+              <label style={{ fontSize: "13px", color: theme.sub, display: "block", marginBottom: "6px" }}>{t.notesLabel}</label>
+              <textarea style={s.textarea} placeholder={t.notesPlaceholder} value={notes} onChange={(e) => setNotes(e.target.value)} />
+              <button style={s.greenBtn} onClick={sendWhatsApp}>{t.whatsappBtn}</button>
             </>
           )}
 
           {/* INSIGHTS */}
           {screen === "insights" && (
             <>
-              <h3 style={s.sectionTitle}>🤖 Sadhana Insights</h3>
+              <h3 style={s.sectionTitle}>{t.insightsTitle}</h3>
               <div style={{ background: dark ? "#1a1a2e" : "#eff6ff", border: `1px solid ${dark ? "#2d2d5e" : "#bfdbfe"}`, borderRadius: "14px", padding: "16px", marginBottom: "12px" }}>
-                <p style={{ margin: "0 0 8px", fontSize: "14px", fontWeight: "600", color: dark ? "#93c5fd" : "#1d4ed8" }}>📊 Aaj ka Analysis</p>
-                <p style={{ margin: "0 0 6px", fontSize: "13px", color: theme.text }}>• Progress: <b>{progress}%</b> — {progress >= 80 ? "Bahut accha! 🌟" : progress >= 50 ? "Theek hai 💪" : "Aaj thoda slow 🙏"}</p>
-                <p style={{ margin: "0 0 6px", fontSize: "13px", color: theme.text }}>• Streak: <b>{streak} din</b> — {streak >= 21 ? "Habit ban gayi! 🎉" : streak >= 7 ? "7 din! 🔥" : "Streak badhaao!"}</p>
-                <p style={{ margin: 0, fontSize: "13px", color: theme.text }}>• Score: <b>{score}/100</b></p>
+                <p style={{ margin: "0 0 8px", fontSize: "14px", fontWeight: "600", color: dark ? "#93c5fd" : "#1d4ed8" }}>{t.analysisTitle}</p>
+                <p style={{ margin: "0 0 6px", fontSize: "13px", color: theme.text }}>• {t.progress}: <b>{progress}%</b> — {progress >= 80 ? t.great : progress >= 50 ? t.ok : t.slow}</p>
+                <p style={{ margin: "0 0 6px", fontSize: "13px", color: theme.text }}>• {t.streak}: <b>{streak}</b> — {streak >= 21 ? t.streakMsg1 : streak >= 7 ? t.streakMsg2 : t.streakMsg3}</p>
+                <p style={{ margin: 0, fontSize: "13px", color: theme.text }}>• {t.score}: <b>{score}/100</b></p>
               </div>
               <div style={{ background: dark ? "#1a2e1a" : "#f0fdf4", border: `1px solid ${dark ? "#14532d" : "#bbf7d0"}`, borderRadius: "14px", padding: "16px", marginBottom: "12px" }}>
-                <p style={{ margin: "0 0 8px", fontSize: "14px", fontWeight: "600", color: "#16a34a" }}>💡 Sujhav</p>
-                {pendingCount > 0 && <p style={{ margin: "0 0 6px", fontSize: "13px", color: theme.text }}>• {pendingCount} task baki hai — abhi karo!</p>}
-                <p style={{ margin: 0, fontSize: "13px", color: theme.text }}>• Brahma Muhurta (4-5 AM) mein sadhna sabse powerful hoti hai 🌅</p>
+                <p style={{ margin: "0 0 8px", fontSize: "14px", fontWeight: "600", color: "#16a34a" }}>{t.suggTitle}</p>
+                {pendingCount > 0 && <p style={{ margin: "0 0 6px", fontSize: "13px", color: theme.text }}>• {pendingCount} {t.suggPending}</p>}
+                <p style={{ margin: 0, fontSize: "13px", color: theme.text }}>• {t.suggBrahma}</p>
               </div>
               <div style={{ background: dark ? "#2d1a0e" : "#fff7ed", border: `1px solid ${theme.border}`, borderRadius: "14px", padding: "16px", marginBottom: "16px" }}>
-                <p style={{ margin: "0 0 8px", fontSize: "14px", fontWeight: "600", color: ORANGE }}>🕉️ Aaj ka Shloka</p>
+                <p style={{ margin: "0 0 8px", fontSize: "14px", fontWeight: "600", color: ORANGE }}>{t.shlokaTitle}</p>
                 <p style={{ margin: "0 0 6px", fontSize: "14px", color: theme.text, fontStyle: "italic" }}>"योगः कर्मसु कौशलम्"</p>
                 <p style={{ margin: 0, fontSize: "12px", color: theme.sub }}>Yoga is skill in action. — BG 2.50</p>
               </div>
-              <button style={s.redBtn} onClick={logout}>🚪 Logout</button>
+              <button style={s.redBtn} onClick={logout}>{t.logout}</button>
             </>
           )}
 
