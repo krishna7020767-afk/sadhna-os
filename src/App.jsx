@@ -18,7 +18,108 @@ const darkTheme = {
 const ORANGE = "#f97316";
 const ORANGE_DARK = "#ea580c";
 
+const SPLASH_IMAGES = [
+  "/prabhupada1.jpg",
+  "/prabhupada2.jpg",
+  "/prabhupada3.jpg",
+  "/prabhupada4.jpg",
+];
+
+// ── Splash Screen ─────────────────────────────────────────
+function SplashScreen({ onDone }) {
+  const [current, setCurrent] = useState(0);
+  const [fade, setFade] = useState(true);
+
+  const goNext = () => {
+    if (current >= SPLASH_IMAGES.length - 1) {
+      onDone();
+      return;
+    }
+    setFade(false);
+    setTimeout(() => {
+      setCurrent((c) => c + 1);
+      setFade(true);
+    }, 400);
+  };
+
+  return (
+    <div
+      onClick={goNext}
+      style={{
+        position: "fixed", inset: 0, zIndex: 9999,
+        background: "#000",
+        display: "flex", flexDirection: "column",
+        alignItems: "center", justifyContent: "center",
+        overflow: "hidden",
+        cursor: "pointer",
+        userSelect: "none",
+      }}
+    >
+      {/* Image */}
+      <div style={{
+        position: "absolute", inset: 0,
+        opacity: fade ? 1 : 0,
+        transition: "opacity 0.4s ease",
+      }}>
+        <img
+          src={SPLASH_IMAGES[current]}
+          alt="Srila Prabhupada"
+          style={{
+            width: "100%", height: "100%",
+            objectFit: "cover",
+            filter: "brightness(0.55)",
+          }}
+        />
+      </div>
+
+      {/* Gradient */}
+      <div style={{
+        position: "absolute", bottom: 0, left: 0, right: 0,
+        height: "60%",
+        background: "linear-gradient(to top, rgba(0,0,0,0.85) 0%, transparent 100%)",
+        pointerEvents: "none",
+      }} />
+
+      {/* Text */}
+      <div style={{
+        position: "absolute", bottom: "60px",
+        textAlign: "center", padding: "0 32px",
+        opacity: fade ? 1 : 0,
+        transition: "opacity 0.4s ease",
+        pointerEvents: "none",
+      }}>
+        <p style={{ margin: "0 0 8px", fontSize: "13px", color: "rgba(255,255,255,0.6)", letterSpacing: "0.15em", textTransform: "uppercase" }}>
+          Sadhana OS
+        </p>
+        <h1 style={{ margin: "0 0 4px", fontSize: "26px", fontWeight: "700", color: "#fff", fontFamily: "'Segoe UI', system-ui, sans-serif", lineHeight: 1.3 }}>
+          All Glories to
+        </h1>
+        <h1 style={{ margin: "0 0 20px", fontSize: "26px", fontWeight: "700", color: ORANGE, fontFamily: "'Segoe UI', system-ui, sans-serif", lineHeight: 1.3 }}>
+          Srila Prabhupada
+        </h1>
+        <p style={{ margin: 0, fontSize: "13px", color: "rgba(255,255,255,0.4)" }}>
+          Tap to continue →
+        </p>
+      </div>
+
+      {/* Dots */}
+      <div style={{ position: "absolute", bottom: "24px", display: "flex", gap: "8px", pointerEvents: "none" }}>
+        {SPLASH_IMAGES.map((_, i) => (
+          <div key={i} style={{
+            width: i === current ? "24px" : "8px",
+            height: "8px", borderRadius: "99px",
+            background: i === current ? ORANGE : "rgba(255,255,255,0.3)",
+            transition: "all 0.3s ease",
+          }} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── Main App ──────────────────────────────────────────────
 export default function App() {
+  const [showSplash, setShowSplash] = useState(true);
   const [user, setUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [tasks, setTasks] = useState([]);
@@ -39,7 +140,6 @@ export default function App() {
   const theme = dark ? darkTheme : lightTheme;
   const t = hindi ? lang.hi : lang.en;
 
-  // Auth listener
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (u) => {
       setUser(u);
@@ -50,12 +150,8 @@ export default function App() {
 
   const loginWithGoogle = async () => {
     const provider = new GoogleAuthProvider();
-    try {
-      await signInWithPopup(auth, provider);
-    } catch (e) {
-      console.error(e);
-      alert("Login failed. Please try again.");
-    }
+    try { await signInWithPopup(auth, provider); }
+    catch (e) { console.error(e); alert("Login failed."); }
   };
 
   const logout = async () => {
@@ -64,7 +160,6 @@ export default function App() {
     setStreak(0);
   };
 
-  // Firestore
   useEffect(() => {
     if (!user) return;
     const docRef = doc(db, "sadhna-os", user.uid);
@@ -74,15 +169,12 @@ export default function App() {
           title, time: v.time || "", category: v.category || "Custom",
           date: v.date || new Date().toDateString(), done: v.done || false,
         }));
-        setTasks(data.filter((t) => t.date === selectedDate.toDateString()));
-      } else {
-        setTasks([]);
-      }
+        setTasks(data.filter((tk) => tk.date === selectedDate.toDateString()));
+      } else setTasks([]);
     });
     return () => unsub();
   }, [user, selectedDate]);
 
-  // Streak
   useEffect(() => {
     if (!user) return;
     const saved = localStorage.getItem(`sadhna_streak_${user.uid}`);
@@ -90,13 +182,11 @@ export default function App() {
   }, [user]);
 
   useEffect(() => {
-    const completed = tasks.filter((t) => t.done).length;
-    const progress = tasks.length ? Math.round((completed / tasks.length) * 100) : 0;
+    const completed = tasks.filter((tk) => tk.done).length;
+    const prog = tasks.length ? Math.round((completed / tasks.length) * 100) : 0;
     const todayIndex = new Date(selectedDate).getDay();
     setWeeklyProgress((prev) => {
-      const copy = [...prev];
-      copy[todayIndex] = progress;
-      return copy;
+      const copy = [...prev]; copy[todayIndex] = prog; return copy;
     });
   }, [tasks]);
 
@@ -117,11 +207,11 @@ export default function App() {
     const updated = [...tasks];
     updated[index].done = !updated[index].done;
     setTasks(updated);
-    if (updated.every((t) => t.done)) markStreakDone();
+    if (updated.every((tk) => tk.done)) markStreakDone();
     try {
       const docRef = doc(db, "sadhna-os", user.uid);
       const updateData = {};
-      updated.forEach((t) => { updateData[t.title] = { ...t }; });
+      updated.forEach((tk) => { updateData[tk.title] = { ...tk }; });
       await updateDoc(docRef, updateData);
     } catch (e) { console.error(e); }
   };
@@ -140,13 +230,12 @@ export default function App() {
 
   const resetDay = async () => {
     if (!user) return;
-    const updated = tasks.map((t) => ({ ...t, done: false }));
-    setTasks(updated);
-    setNotes("");
+    const updated = tasks.map((tk) => ({ ...tk, done: false }));
+    setTasks(updated); setNotes("");
     try {
       const docRef = doc(db, "sadhna-os", user.uid);
       const updateData = {};
-      updated.forEach((t) => { updateData[t.title] = { ...t }; });
+      updated.forEach((tk) => { updateData[tk.title] = { ...tk }; });
       await updateDoc(docRef, updateData);
     } catch (e) { console.error(e); }
   };
@@ -158,12 +247,11 @@ export default function App() {
     try {
       const docRef = doc(db, "sadhna-os", user.uid);
       const updateData = {};
-      updated.forEach((t) => { updateData[t.title] = { ...t }; });
+      updated.forEach((tk) => { updateData[tk.title] = { ...tk }; });
       await setDoc(docRef, updateData);
     } catch (e) { console.error(e); }
   };
 
-  // Timer
   const startTimer = () => {
     if (timerRunning) return;
     setTimerRunning(true);
@@ -172,29 +260,24 @@ export default function App() {
   const pauseTimer = () => { setTimerRunning(false); clearInterval(timerRef.current); };
   const resetTimer = () => { pauseTimer(); setTimerSecs(0); };
   const formatTime = (s) => {
-    const h = Math.floor(s / 3600);
-    const m = Math.floor((s % 3600) / 60);
-    const sec = s % 60;
+    const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
     return h > 0
       ? `${h}:${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}`
       : `${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
   };
 
-  // WhatsApp
   const sendWhatsApp = () => {
-    const completed = tasks.filter((t) => t.done).length;
+    const completed = tasks.filter((tk) => tk.done).length;
     const pending = tasks.length - completed;
-    const progress = tasks.length ? Math.round((completed / tasks.length) * 100) : 0;
-    const score = Math.min(100, Math.round(progress * 1.1));
+    const prog = tasks.length ? Math.round((completed / tasks.length) * 100) : 0;
+    const sc = Math.min(100, Math.round(prog * 1.1));
     const dateStr = selectedDate.toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long" });
     const userName = user?.displayName || "Devotee";
-    const report = `🙏 *Hare Krishna!*\n\n👤 *${userName}*\n📅 *${dateStr}*\n\n✅ *Sadhana Report:*\n• Progress: ${progress}%\n• Daily Score: ${score}/100\n• Completed: ${completed}/${tasks.length}\n• Pending: ${pending}\n• Streak: ${streak} days 🔥\n\n📝 *Notes:*\n${notes || "No notes added."}\n\n_Sent from Sadhana OS_ 🕉️`;
+    const report = `🙏 *All Glories to Srila Prabhupada!*\n\n👤 *${userName}*\n📅 *${dateStr}*\n\n✅ *Sadhana Report:*\n• Progress: ${prog}%\n• Daily Score: ${sc}/100\n• Completed: ${completed}/${tasks.length}\n• Pending: ${pending}\n• Streak: ${streak} days 🔥\n\n📝 *Notes:*\n${notes || "No notes added."}\n\n_Sent from Sadhana OS_ 🙏`;
     window.open(`https://wa.me/?text=${encodeURIComponent(report)}`, "_blank");
   };
 
-  // Ekadashi
   const ekadashiDates = [
-    { name: "Mohini Ekadashi", date: "May 8, 2026" },
     { name: "Apara Ekadashi", date: "May 23, 2026" },
     { name: "Nirjala Ekadashi", date: "Jun 6, 2026" },
     { name: "Yogini Ekadashi", date: "Jun 21, 2026" },
@@ -206,10 +289,7 @@ export default function App() {
     { name: "Indira Ekadashi", date: "Sep 18, 2026" },
   ];
   const today = new Date();
-  const upcoming = ekadashiDates
-    .map((e) => ({ ...e, dateObj: new Date(e.date) }))
-    .filter((e) => e.dateObj >= today)
-    .slice(0, 5);
+  const upcoming = ekadashiDates.map((e) => ({ ...e, dateObj: new Date(e.date) })).filter((e) => e.dateObj >= today).slice(0, 5);
   const daysUntil = (d) => {
     const diff = Math.ceil((d - today) / (1000 * 60 * 60 * 24));
     if (diff === 0) return t.today;
@@ -217,7 +297,7 @@ export default function App() {
     return `${diff} ${t.daysLeft}`;
   };
 
-  const completedCount = tasks.filter((t) => t.done).length;
+  const completedCount = tasks.filter((tk) => tk.done).length;
   const pendingCount = tasks.length - completedCount;
   const progress = tasks.length ? Math.round((completedCount / tasks.length) * 100) : 0;
   const score = Math.min(100, Math.round(progress * 1.1));
@@ -226,10 +306,10 @@ export default function App() {
     page: { minHeight: "100vh", display: "flex", justifyContent: "center", alignItems: "flex-start", padding: "20px 0", background: theme.bg, fontFamily: "'Segoe UI', system-ui, sans-serif", transition: "background 0.3s" },
     phone: { width: "100%", maxWidth: "420px", minHeight: "100vh", background: theme.card, borderRadius: "24px", overflow: "hidden", display: "flex", flexDirection: "column", boxShadow: dark ? "0 0 40px rgba(0,0,0,0.6)" : "0 8px 40px rgba(0,0,0,0.12)" },
     header: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px 20px 12px", borderBottom: `1px solid ${theme.border}` },
-    title: { margin: 0, fontSize: "20px", fontWeight: "700", color: ORANGE },
-    subtitle: { margin: "2px 0 0", fontSize: "11px", color: theme.sub },
+    title: { margin: 0, fontSize: "18px", fontWeight: "700", color: ORANGE },
+    subtitle: { margin: "2px 0 0", fontSize: "10px", color: theme.sub },
     headerBtns: { display: "flex", gap: "8px", alignItems: "center" },
-    iconBtn: { background: "transparent", border: `1px solid ${theme.border}`, borderRadius: "50%", width: "36px", height: "36px", cursor: "pointer", fontSize: "14px", display: "flex", alignItems: "center", justifyContent: "center", color: theme.text, fontWeight: "600" },
+    iconBtn: { background: "transparent", border: `1px solid ${theme.border}`, borderRadius: "50%", width: "36px", height: "36px", cursor: "pointer", fontSize: "14px", display: "flex", alignItems: "center", justifyContent: "center", color: theme.text },
     calendar: { padding: "10px 20px", borderBottom: `1px solid ${theme.border}` },
     dateInput: { width: "100%", padding: "8px 12px", borderRadius: "10px", border: `1px solid ${theme.border}`, background: theme.input, color: theme.text, fontSize: "14px", outline: "none", boxSizing: "border-box" },
     scrollArea: { flex: 1, overflowY: "auto", padding: "16px 20px" },
@@ -274,24 +354,27 @@ export default function App() {
     langToggle: { background: hindi ? ORANGE : "transparent", border: `1px solid ${hindi ? ORANGE : theme.border}`, borderRadius: "20px", padding: "4px 10px", cursor: "pointer", fontSize: "12px", fontWeight: "600", color: hindi ? "#fff" : theme.sub, transition: "all 0.2s" },
   };
 
+  // Splash
+  if (showSplash) return <SplashScreen onDone={() => setShowSplash(false)} />;
+
   // Loading
   if (authLoading) {
     return (
       <div style={s.loginPage}>
         <div style={{ textAlign: "center" }}>
-          <p style={{ fontSize: "48px", margin: "0 0 12px" }}>🕉️</p>
+          <p style={{ fontSize: "48px", margin: "0 0 12px" }}>🙏</p>
           <p style={{ color: "#9ca3af", fontSize: "14px" }}>Loading...</p>
         </div>
       </div>
     );
   }
 
-  // Login screen
+  // Login
   if (!user) {
     return (
       <div style={s.loginPage}>
         <div style={s.loginCard}>
-          <p style={{ fontSize: "56px", margin: "0 0 8px" }}>🕉️</p>
+          <p style={{ fontSize: "56px", margin: "0 0 8px" }}>🙏</p>
           <h1 style={s.loginTitle}>{t.loginTitle}</h1>
           <p style={s.loginSub}>{t.loginSub}</p>
           <button style={s.googleBtn} onClick={loginWithGoogle}>
@@ -323,14 +406,12 @@ export default function App() {
               <img src={user.photoURL} alt="profile" style={{ width: "32px", height: "32px", borderRadius: "50%", border: `2px solid ${ORANGE}` }} />
             )}
             <div>
-              <h1 style={s.title}>Sadhana OS 🕉️</h1>
-              <p style={s.subtitle}>{t.greeting}, {user.displayName?.split(" ")[0]}!</p>
+              <h1 style={s.title}>Sadhana OS</h1>
+              <p style={s.subtitle}>All Glories to Srila Prabhupada 🙏</p>
             </div>
           </div>
           <div style={s.headerBtns}>
-            <button style={s.langToggle} onClick={() => setHindi(!hindi)}>
-              {hindi ? "EN" : "हिं"}
-            </button>
+            <button style={s.langToggle} onClick={() => setHindi(!hindi)}>{hindi ? "EN" : "हिं"}</button>
             <button style={s.iconBtn} onClick={() => setDark(!dark)}>{dark ? "☀️" : "🌙"}</button>
           </div>
         </header>
@@ -341,7 +422,6 @@ export default function App() {
 
         <div style={s.scrollArea}>
 
-          {/* HOME */}
           {screen === "home" && (
             <>
               <div style={s.hero}>
@@ -391,7 +471,6 @@ export default function App() {
             </>
           )}
 
-          {/* ADD */}
           {screen === "add" && (
             <>
               <h3 style={s.sectionTitle}>{t.addTitle}</h3>
@@ -416,7 +495,6 @@ export default function App() {
             </>
           )}
 
-          {/* TIMER */}
           {screen === "focus" && (
             <>
               <h3 style={s.sectionTitle}>{t.timerTitle}</h3>
@@ -442,7 +520,6 @@ export default function App() {
             </>
           )}
 
-          {/* EKADASHI */}
           {screen === "ekadashi" && (
             <>
               <h3 style={s.sectionTitle}>{t.ekTitle}</h3>
@@ -459,7 +536,6 @@ export default function App() {
             </>
           )}
 
-          {/* REPORT */}
           {screen === "report" && (
             <>
               <h3 style={s.sectionTitle}>{t.reportTitle}</h3>
@@ -479,7 +555,6 @@ export default function App() {
             </>
           )}
 
-          {/* INSIGHTS */}
           {screen === "insights" && (
             <>
               <h3 style={s.sectionTitle}>{t.insightsTitle}</h3>
