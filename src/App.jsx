@@ -1,567 +1,722 @@
 import { useEffect, useState, useRef } from "react";
-import { db, auth } from './firebase';
-import { doc, onSnapshot, updateDoc, setDoc } from "firebase/firestore";
-import { GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "firebase/auth";
-import lang from './lang';
-import ShareCard from './ShareCard';
+import { db, auth } from "./firebase";
+import { doc, onSnapshot, setDoc } from "firebase/firestore";
+import {
+  GoogleAuthProvider,
+  signInWithPopup,
+  signOut,
+  onAuthStateChanged,
+} from "firebase/auth";
 
-const lightTheme = {
-  bg: "#fff7ed", card: "#ffffff", text: "#1f2937", sub: "#6b7280",
-  border: "#fed7aa", input: "#fff7ed", navBg: "#ffffff",
-  taskBg: "#fff7ed", doneBg: "#f0fdf4", doneText: "#16a34a",
-};
-const darkTheme = {
-  bg: "#0f0f0f", card: "#1a1a1a", text: "#f5f5f5", sub: "#9ca3af",
-  border: "#2d2d2d", input: "#222222", navBg: "#1a1a1a",
-  taskBg: "#222222", doneBg: "#052e16", doneText: "#4ade80",
-};
+/* ──────────────────────────────────────────────
+   Helpers
+─────────────────────────────────────────────── */
+function dateKey(d = new Date()) {
+  return (
+    d.getFullYear() +
+    "-" +
+    String(d.getMonth() + 1).padStart(2, "0") +
+    "-" +
+    String(d.getDate()).padStart(2, "0")
+  );
+}
+function prettyDate(key) {
+  const d = new Date(key + "T00:00:00");
+  return d.toLocaleDateString("en-IN", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+  });
+}
 
-const ORANGE = "#f97316";
-const ORANGE_DARK = "#ea580c";
+/* Permanent / fixed sadhna items */
+const FIXED = [
+  { id: "mangalAarti", en: "Mangal Aarti on time", hi: "मंगल आरती समय पर", type: "bool" },
+  { id: "wakeTime", en: "Wake-up / Morning walk time", hi: "उठने / मॉर्निंग वॉक समय", type: "time" },
+  { id: "chanting16", en: "Chanting — 16 rounds", hi: "जप — 16 माला", type: "bool" },
+  { id: "chantingFinishTime", en: "Chanting finished at", hi: "जप समाप्त समय", type: "time" },
+  { id: "reading2hr", en: "Reading — 2 hours", hi: "पठन — 2 घंटे", type: "bool" },
+  { id: "hearingSB", en: "SB class heard", hi: "भागवतम् क्लास सुनी", type: "bool" },
+  { id: "hearingExtra", en: "Extra lecture heard", hi: "अतिरिक्त प्रवचन सुना", type: "bool" },
+  { id: "exercise", en: "Exercise", hi: "व्यायाम", type: "bool" },
+];
+const BOOL_IDS = FIXED.filter((f) => f.type === "bool").map((f) => f.id);
 
-const SPLASH_IMAGES = [
-  "/prabhupada1.jpg",
-  "/prabhupada2.jpg",
-  "/prabhupada3.jpg",
-  "/prabhupada4.jpg",
+const PLAYLISTS = [
+  {
+    title: "Playlist 1",
+    id: "PLKVQRAZMT7-k-VHcGd_h9xg5c7Jyqa11w",
+  },
+  {
+    title: "Playlist 2",
+    id: "PLKVQRAZMT7-lrqg0KaiNxT41U7CPpoyJJ",
+  },
 ];
 
-// ── Splash Screen ─────────────────────────────────────────
+/* Tiny translation map */
+const T = {
+  home: { en: "Home", hi: "होम" },
+  add: { en: "Add", hi: "जोड़ें" },
+  timer: { en: "Timer", hi: "टाइमर" },
+  playlist: { en: "Lectures", hi: "प्रवचन" },
+  report: { en: "Report", hi: "रिपोर्ट" },
+  ai: { en: "AI", hi: "AI" },
+  insights: { en: "Insights", hi: "विश्लेषण" },
+  todaySadhna: { en: "Today's Sadhna", hi: "आज की साधना" },
+  progress: { en: "Today's Progress", hi: "आज की प्रगति" },
+  done: { en: "Done", hi: "पूर्ण" },
+  pending: { en: "Pending", hi: "बाकी" },
+  logout: { en: "Logout", hi: "लॉगआउट" },
+};
+const tr = (k, lang) => (T[k] ? T[k][lang] : k);
+
+/* ──────────────────────────────────────────────
+   Splash (tap to advance, no Om / no sanskrit line)
+─────────────────────────────────────────────── */
 function SplashScreen({ onDone }) {
-  const [current, setCurrent] = useState(0);
-  const [fade, setFade] = useState(true);
-
-  const goNext = () => {
-    if (current >= SPLASH_IMAGES.length - 1) {
-      onDone();
-      return;
-    }
-    setFade(false);
-    setTimeout(() => {
-      setCurrent((c) => c + 1);
-      setFade(true);
-    }, 400);
+  const imgs = [
+    "/prabhupada1.jpg",
+    "/prabhupada2.jpg",
+    "/prabhupada3.jpg",
+    "/prabhupada4.jpg",
+  ];
+  const [i, setI] = useState(0);
+  const next = () => {
+    if (i >= imgs.length - 1) onDone();
+    else setI(i + 1);
   };
-
   return (
-    <div onClick={goNext} style={{
-      position: "fixed", inset: 0, zIndex: 9999,
-      background: "#000", display: "flex", flexDirection: "column",
-      alignItems: "center", justifyContent: "center",
-      overflow: "hidden", cursor: "pointer", userSelect: "none",
-    }}>
-      <div style={{ position: "absolute", inset: 0, opacity: fade ? 1 : 0, transition: "opacity 0.4s ease" }}>
-        <img src={SPLASH_IMAGES[current]} alt="Srila Prabhupada" style={{ width: "100%", height: "100%", objectFit: "cover", filter: "brightness(0.55)" }} />
+    <div
+      onClick={next}
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "#1a0e05",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        cursor: "pointer",
+        zIndex: 9999,
+      }}
+    >
+      <img
+        src={imgs[i]}
+        alt=""
+        style={{
+          maxWidth: "82%",
+          maxHeight: "62%",
+          borderRadius: 16,
+          objectFit: "cover",
+          boxShadow: "0 10px 40px rgba(0,0,0,.6)",
+        }}
+      />
+      <div
+        style={{
+          color: "#ff9933",
+          fontSize: 22,
+          fontWeight: 700,
+          marginTop: 26,
+          textAlign: "center",
+          padding: "0 20px",
+        }}
+      >
+        All Glories to Srila Prabhupada
       </div>
-      <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: "60%", background: "linear-gradient(to top, rgba(0,0,0,0.85) 0%, transparent 100%)", pointerEvents: "none" }} />
-      <div style={{ position: "absolute", bottom: "60px", textAlign: "center", padding: "0 32px", opacity: fade ? 1 : 0, transition: "opacity 0.4s ease", pointerEvents: "none" }}>
-        <p style={{ margin: "0 0 8px", fontSize: "13px", color: "rgba(255,255,255,0.6)", letterSpacing: "0.15em", textTransform: "uppercase" }}>Sadhana OS</p>
-        <h1 style={{ margin: "0 0 4px", fontSize: "26px", fontWeight: "700", color: "#fff", fontFamily: "'Segoe UI', system-ui, sans-serif", lineHeight: 1.3 }}>All Glories to</h1>
-        <h1 style={{ margin: "0 0 20px", fontSize: "26px", fontWeight: "700", color: ORANGE, fontFamily: "'Segoe UI', system-ui, sans-serif", lineHeight: 1.3 }}>Srila Prabhupada</h1>
-        <p style={{ margin: 0, fontSize: "13px", color: "rgba(255,255,255,0.4)" }}>Tap to continue →</p>
-      </div>
-      <div style={{ position: "absolute", bottom: "24px", display: "flex", gap: "8px", pointerEvents: "none" }}>
-        {SPLASH_IMAGES.map((_, i) => (
-          <div key={i} style={{ width: i === current ? "24px" : "8px", height: "8px", borderRadius: "99px", background: i === current ? ORANGE : "rgba(255,255,255,0.3)", transition: "all 0.3s ease" }} />
+      <div style={{ marginTop: 14, display: "flex", gap: 8 }}>
+        {imgs.map((_, k) => (
+          <span
+            key={k}
+            style={{
+              width: 8,
+              height: 8,
+              borderRadius: "50%",
+              background: k === i ? "#ff9933" : "rgba(255,255,255,.3)",
+            }}
+          />
         ))}
       </div>
+      <div style={{ color: "rgba(255,255,255,.45)", fontSize: 13, marginTop: 22 }}>
+        Tap to continue →
+      </div>
     </div>
   );
 }
 
-// ── Main App ──────────────────────────────────────────────
-export default function App() {
-  const [showSplash, setShowSplash] = useState(true);
-  const [showShareCard, setShowShareCard] = useState(false);
-  const [user, setUser] = useState(null);
-  const [authLoading, setAuthLoading] = useState(true);
-  const [tasks, setTasks] = useState([]);
-  const [screen, setScreen] = useState("home");
-  const [dark, setDark] = useState(false);
-  const [hindi, setHindi] = useState(false);
-  const [newTime, setNewTime] = useState("");
-  const [newTask, setNewTask] = useState("");
-  const [notes, setNotes] = useState("");
-  const [streak, setStreak] = useState(0);
-  const [selectedDate, setSelectedDate] = useState(new Date());
-  const [weeklyProgress, setWeeklyProgress] = useState([0, 0, 0, 0, 0, 0, 0]);
-  const [timerSecs, setTimerSecs] = useState(0);
-  const [timerRunning, setTimerRunning] = useState(false);
-  const [timerLabel, setTimerLabel] = useState("Japa");
-  const timerRef = useRef(null);
-
-  const theme = dark ? darkTheme : lightTheme;
-  const t = hindi ? lang.hi : lang.en;
-
-  useEffect(() => {
-    const unsub = onAuthStateChanged(auth, (u) => { setUser(u); setAuthLoading(false); });
-    return () => unsub();
-  }, []);
-
-  const loginWithGoogle = async () => {
-    const provider = new GoogleAuthProvider();
-    try { await signInWithPopup(auth, provider); }
-    catch (e) { console.error(e); alert("Login failed."); }
-  };
-
-  const logout = async () => { await signOut(auth); setTasks([]); setStreak(0); };
-
-  useEffect(() => {
-    if (!user) return;
-    const docRef = doc(db, "sadhna-os", user.uid);
-    const unsub = onSnapshot(docRef, (snap) => {
-      if (snap.exists()) {
-        const data = Object.entries(snap.data()).map(([title, v]) => ({
-          title, time: v.time || "", category: v.category || "Custom",
-          date: v.date || new Date().toDateString(), done: v.done || false,
-        }));
-        setTasks(data.filter((tk) => tk.date === selectedDate.toDateString()));
-      } else setTasks([]);
-    });
-    return () => unsub();
-  }, [user, selectedDate]);
-
-  useEffect(() => {
-    if (!user) return;
-    const saved = localStorage.getItem(`sadhna_streak_${user.uid}`);
-    if (saved) setStreak(parseInt(saved));
-  }, [user]);
-
-  useEffect(() => {
-    const completed = tasks.filter((tk) => tk.done).length;
-    const prog = tasks.length ? Math.round((completed / tasks.length) * 100) : 0;
-    const todayIndex = new Date(selectedDate).getDay();
-    setWeeklyProgress((prev) => { const copy = [...prev]; copy[todayIndex] = prog; return copy; });
-  }, [tasks]);
-
-  const markStreakDone = () => {
-    if (!user) return;
-    const today = new Date().toDateString();
-    const last = localStorage.getItem(`sadhna_streak_date_${user.uid}`);
-    if (last !== today) {
-      const newStreak = streak + 1;
-      setStreak(newStreak);
-      localStorage.setItem(`sadhna_streak_${user.uid}`, newStreak);
-      localStorage.setItem(`sadhna_streak_date_${user.uid}`, today);
+/* ──────────────────────────────────────────────
+   Login
+─────────────────────────────────────────────── */
+function Login({ onLogin, lang }) {
+  const go = async () => {
+    try {
+      await signInWithPopup(auth, new GoogleAuthProvider());
+    } catch (e) {
+      alert("Login failed: " + e.message);
     }
   };
-
-  const toggleTask = async (index) => {
-    if (!user) return;
-    const updated = [...tasks];
-    updated[index].done = !updated[index].done;
-    setTasks(updated);
-    if (updated.every((tk) => tk.done)) markStreakDone();
-    try {
-      const docRef = doc(db, "sadhna-os", user.uid);
-      const updateData = {};
-      updated.forEach((tk) => { updateData[tk.title] = { ...tk }; });
-      await updateDoc(docRef, updateData);
-    } catch (e) { console.error(e); }
-  };
-
-  const addTask = async () => {
-    if (!user || !newTime || !newTask) return;
-    const entry = { time: newTime, title: newTask, done: false, date: selectedDate.toDateString(), category: "Custom" };
-    setTasks([...tasks, entry]);
-    try {
-      const docRef = doc(db, "sadhna-os", user.uid);
-      try { await updateDoc(docRef, { [newTask]: entry }); }
-      catch { await setDoc(docRef, { [newTask]: entry }); }
-    } catch (e) { console.error(e); }
-    setNewTime(""); setNewTask("");
-  };
-
-  const resetDay = async () => {
-    if (!user) return;
-    const updated = tasks.map((tk) => ({ ...tk, done: false }));
-    setTasks(updated); setNotes("");
-    try {
-      const docRef = doc(db, "sadhna-os", user.uid);
-      const updateData = {};
-      updated.forEach((tk) => { updateData[tk.title] = { ...tk }; });
-      await updateDoc(docRef, updateData);
-    } catch (e) { console.error(e); }
-  };
-
-  const deleteTask = async (index) => {
-    if (!user) return;
-    const updated = tasks.filter((_, i) => i !== index);
-    setTasks(updated);
-    try {
-      const docRef = doc(db, "sadhna-os", user.uid);
-      const updateData = {};
-      updated.forEach((tk) => { updateData[tk.title] = { ...tk }; });
-      await setDoc(docRef, updateData);
-    } catch (e) { console.error(e); }
-  };
-
-  const startTimer = () => {
-    if (timerRunning) return;
-    setTimerRunning(true);
-    timerRef.current = setInterval(() => setTimerSecs((s) => s + 1), 1000);
-  };
-  const pauseTimer = () => { setTimerRunning(false); clearInterval(timerRef.current); };
-  const resetTimer = () => { pauseTimer(); setTimerSecs(0); };
-  const formatTime = (s) => {
-    const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
-    return h > 0 ? `${h}:${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}` : `${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
-  };
-
-  const sendWhatsApp = () => {
-    const completed = tasks.filter((tk) => tk.done).length;
-    const pending = tasks.length - completed;
-    const prog = tasks.length ? Math.round((completed / tasks.length) * 100) : 0;
-    const sc = Math.min(100, Math.round(prog * 1.1));
-    const dateStr = selectedDate.toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long" });
-    const userName = user?.displayName || "Devotee";
-    const report = `🙏 *All Glories to Srila Prabhupada!*\n\n👤 *${userName}*\n📅 *${dateStr}*\n\n✅ *Sadhana Report:*\n• Progress: ${prog}%\n• Daily Score: ${sc}/100\n• Completed: ${completed}/${tasks.length}\n• Pending: ${pending}\n• Streak: ${streak} days 🔥\n\n📝 *Notes:*\n${notes || "No notes added."}\n\n_Sent from Sadhana OS_ 🙏`;
-    window.open(`https://wa.me/?text=${encodeURIComponent(report)}`, "_blank");
-  };
-
-  const ekadashiDates = [
-    { name: "Apara Ekadashi", date: "May 23, 2026" },
-    { name: "Nirjala Ekadashi", date: "Jun 6, 2026" },
-    { name: "Yogini Ekadashi", date: "Jun 21, 2026" },
-    { name: "Devshayani Ekadashi", date: "Jul 6, 2026" },
-    { name: "Kamika Ekadashi", date: "Jul 21, 2026" },
-    { name: "Shravana Putrada Ekadashi", date: "Aug 4, 2026" },
-    { name: "Aja Ekadashi", date: "Aug 19, 2026" },
-    { name: "Parsva Ekadashi", date: "Sep 3, 2026" },
-    { name: "Indira Ekadashi", date: "Sep 18, 2026" },
-  ];
-  const today = new Date();
-  const upcoming = ekadashiDates.map((e) => ({ ...e, dateObj: new Date(e.date) })).filter((e) => e.dateObj >= today).slice(0, 5);
-  const daysUntil = (d) => {
-    const diff = Math.ceil((d - today) / (1000 * 60 * 60 * 24));
-    if (diff === 0) return t.today;
-    if (diff === 1) return t.tomorrow;
-    return `${diff} ${t.daysLeft}`;
-  };
-
-  const completedCount = tasks.filter((tk) => tk.done).length;
-  const pendingCount = tasks.length - completedCount;
-  const progress = tasks.length ? Math.round((completedCount / tasks.length) * 100) : 0;
-  const score = Math.min(100, Math.round(progress * 1.1));
-
-  const s = {
-    page: { minHeight: "100vh", display: "flex", justifyContent: "center", alignItems: "flex-start", padding: "20px 0", background: theme.bg, fontFamily: "'Segoe UI', system-ui, sans-serif", transition: "background 0.3s" },
-    phone: { width: "100%", maxWidth: "420px", minHeight: "100vh", background: theme.card, borderRadius: "24px", overflow: "hidden", display: "flex", flexDirection: "column", boxShadow: dark ? "0 0 40px rgba(0,0,0,0.6)" : "0 8px 40px rgba(0,0,0,0.12)" },
-    header: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px 20px 12px", borderBottom: `1px solid ${theme.border}` },
-    title: { margin: 0, fontSize: "18px", fontWeight: "700", color: ORANGE },
-    subtitle: { margin: "2px 0 0", fontSize: "10px", color: theme.sub },
-    headerBtns: { display: "flex", gap: "8px", alignItems: "center" },
-    iconBtn: { background: "transparent", border: `1px solid ${theme.border}`, borderRadius: "50%", width: "36px", height: "36px", cursor: "pointer", fontSize: "14px", display: "flex", alignItems: "center", justifyContent: "center", color: theme.text },
-    calendar: { padding: "10px 20px", borderBottom: `1px solid ${theme.border}` },
-    dateInput: { width: "100%", padding: "8px 12px", borderRadius: "10px", border: `1px solid ${theme.border}`, background: theme.input, color: theme.text, fontSize: "14px", outline: "none", boxSizing: "border-box" },
-    scrollArea: { flex: 1, overflowY: "auto", padding: "16px 20px" },
-    hero: { background: dark ? "#1f1f1f" : "#fff7ed", borderRadius: "16px", padding: "18px", marginBottom: "14px", border: `1px solid ${theme.border}` },
-    heroLabel: { margin: "0 0 4px", fontSize: "11px", color: theme.sub, textTransform: "uppercase", letterSpacing: "0.05em" },
-    heroBig: { margin: "0 0 10px", fontSize: "40px", fontWeight: "800", color: ORANGE },
-    bar: { height: "8px", background: dark ? "#333" : "#fed7aa", borderRadius: "99px", overflow: "hidden" },
-    fill: { height: "100%", background: `linear-gradient(90deg, ${ORANGE}, ${ORANGE_DARK})`, borderRadius: "99px", transition: "width 0.5s ease" },
-    grid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "14px" },
-    card: { background: dark ? "#222" : "#fff7ed", border: `1px solid ${theme.border}`, borderRadius: "14px", padding: "12px", textAlign: "center" },
-    cardLabel: { margin: "0 0 4px", fontSize: "11px", color: theme.sub, textTransform: "uppercase" },
-    cardValue: { margin: 0, fontSize: "20px", fontWeight: "700", color: theme.text },
-    sectionTitle: { margin: "0 0 12px", fontSize: "16px", fontWeight: "600", color: theme.text },
-    task: { display: "flex", alignItems: "center", gap: "12px", padding: "12px 14px", background: theme.taskBg, border: `1px solid ${theme.border}`, borderRadius: "12px", marginBottom: "8px" },
-    doneTask: { display: "flex", alignItems: "center", gap: "12px", padding: "12px 14px", background: theme.doneBg, border: `1px solid ${dark ? "#14532d" : "#bbf7d0"}`, borderRadius: "12px", marginBottom: "8px", opacity: 0.8 },
-    taskTitle: { margin: 0, fontSize: "14px", fontWeight: "500" },
-    taskTime: { margin: "0 0 2px", fontSize: "11px", color: theme.sub },
-    checkbox: { width: "18px", height: "18px", accentColor: ORANGE, cursor: "pointer", flexShrink: 0 },
-    deleteBtn: { marginLeft: "auto", background: "transparent", border: "none", color: "#ef4444", cursor: "pointer", fontSize: "16px", padding: "2px 6px", borderRadius: "6px", flexShrink: 0 },
-    chart: { display: "flex", alignItems: "flex-end", gap: "6px", height: "80px", padding: "8px 0 0", marginTop: "16px" },
-    chartItem: { flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: "4px", height: "100%", justifyContent: "flex-end" },
-    chartBarWrap: { flex: 1, width: "100%", display: "flex", alignItems: "flex-end", justifyContent: "center" },
-    input: { width: "100%", padding: "12px 14px", borderRadius: "12px", border: `1px solid ${theme.border}`, background: theme.input, color: theme.text, fontSize: "14px", outline: "none", marginBottom: "10px", boxSizing: "border-box" },
-    textarea: { width: "100%", padding: "12px 14px", borderRadius: "12px", border: `1px solid ${theme.border}`, background: theme.input, color: theme.text, fontSize: "14px", outline: "none", marginBottom: "10px", boxSizing: "border-box", minHeight: "100px", resize: "vertical", fontFamily: "inherit" },
-    orangeBtn: { width: "100%", padding: "13px", background: ORANGE, color: "#fff", border: "none", borderRadius: "12px", fontSize: "15px", fontWeight: "600", cursor: "pointer", marginBottom: "10px" },
-    grayBtn: { width: "100%", padding: "13px", background: dark ? "#333" : "#e5e7eb", color: theme.text, border: "none", borderRadius: "12px", fontSize: "15px", fontWeight: "600", cursor: "pointer", marginBottom: "10px" },
-    greenBtn: { width: "100%", padding: "13px", background: "#16a34a", color: "#fff", border: "none", borderRadius: "12px", fontSize: "15px", fontWeight: "600", cursor: "pointer", marginBottom: "10px" },
-    purpleBtn: { width: "100%", padding: "13px", background: "#7c3aed", color: "#fff", border: "none", borderRadius: "12px", fontSize: "15px", fontWeight: "600", cursor: "pointer", marginBottom: "10px" },
-    redBtn: { width: "100%", padding: "13px", background: "#dc2626", color: "#fff", border: "none", borderRadius: "12px", fontSize: "15px", fontWeight: "600", cursor: "pointer", marginBottom: "10px" },
-    nav: { display: "flex", borderTop: `1px solid ${theme.border}`, background: theme.navBg, padding: "8px 4px" },
-    navBtn: { flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: "2px", padding: "6px 2px", background: "transparent", border: "none", cursor: "pointer", color: theme.sub, fontSize: "10px", borderRadius: "10px" },
-    navActive: { flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: "2px", padding: "6px 2px", background: dark ? "#2d1a0e" : "#fff7ed", border: "none", cursor: "pointer", color: ORANGE, fontSize: "10px", fontWeight: "600", borderRadius: "10px" },
-    timerDisplay: { fontSize: "64px", fontWeight: "800", color: ORANGE, textAlign: "center", letterSpacing: "-2px", margin: "20px 0", fontVariantNumeric: "tabular-nums" },
-    timerRow: { display: "flex", gap: "10px", marginBottom: "10px" },
-    ekCard: { background: theme.taskBg, border: `1px solid ${theme.border}`, borderRadius: "14px", padding: "14px 16px", marginBottom: "10px", display: "flex", justifyContent: "space-between", alignItems: "center" },
-    badge: { background: ORANGE, color: "#fff", borderRadius: "20px", padding: "3px 10px", fontSize: "11px", fontWeight: "600" },
-    emptyState: { textAlign: "center", padding: "40px 20px", color: theme.sub },
-    loginPage: { minHeight: "100vh", display: "flex", justifyContent: "center", alignItems: "center", background: theme.bg, fontFamily: "'Segoe UI', system-ui, sans-serif" },
-    loginCard: { background: theme.card, borderRadius: "24px", padding: "40px 32px", textAlign: "center", maxWidth: "340px", width: "90%", boxShadow: "0 8px 40px rgba(0,0,0,0.12)" },
-    loginTitle: { fontSize: "32px", fontWeight: "800", color: ORANGE, margin: "0 0 8px" },
-    loginSub: { fontSize: "14px", color: theme.sub, margin: "0 0 32px" },
-    googleBtn: { width: "100%", padding: "14px", background: "#fff", color: "#1f2937", border: "1px solid #e5e7eb", borderRadius: "12px", fontSize: "15px", fontWeight: "600", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "10px", boxShadow: "0 2px 8px rgba(0,0,0,0.08)" },
-    langToggle: { background: hindi ? ORANGE : "transparent", border: `1px solid ${hindi ? ORANGE : theme.border}`, borderRadius: "20px", padding: "4px 10px", cursor: "pointer", fontSize: "12px", fontWeight: "600", color: hindi ? "#fff" : theme.sub, transition: "all 0.2s" },
-  };
-
-  if (showSplash) return <SplashScreen onDone={() => setShowSplash(false)} />;
-
-  if (authLoading) {
-    return (
-      <div style={s.loginPage}>
-        <div style={{ textAlign: "center" }}>
-          <p style={{ fontSize: "48px", margin: "0 0 12px" }}>🙏</p>
-          <p style={{ color: "#9ca3af", fontSize: "14px" }}>Loading...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!user) {
-    return (
-      <div style={s.loginPage}>
-        <div style={s.loginCard}>
-          <p style={{ fontSize: "56px", margin: "0 0 8px" }}>🙏</p>
-          <h1 style={s.loginTitle}>{t.loginTitle}</h1>
-          <p style={s.loginSub}>{t.loginSub}</p>
-          <button style={s.googleBtn} onClick={loginWithGoogle}>
-            <svg width="20" height="20" viewBox="0 0 48 48">
-              <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
-              <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
-              <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
-              <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.31-8.16 2.31-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
-            </svg>
-            {t.loginBtn}
-          </button>
-          <p style={{ margin: "20px 0 0", fontSize: "12px", color: theme.sub }}>{t.loginFooter}</p>
-          <button style={{ ...s.langToggle, marginTop: "16px" }} onClick={() => setHindi(!hindi)}>{hindi ? "EN" : "हिं"}</button>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div style={s.page}>
-      <div style={s.phone}>
-
-        {/* ShareCard overlay */}
-        {showShareCard && (
-          <ShareCard
-            user={user}
-            progress={progress}
-            score={score}
-            streak={streak}
-            completedCount={completedCount}
-            totalCount={tasks.length}
-            date={selectedDate}
-            onClose={() => setShowShareCard(false)}
-          />
-        )}
-
-        <header style={s.header}>
-          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-            {user.photoURL && (
-              <img src={user.photoURL} alt="profile" style={{ width: "32px", height: "32px", borderRadius: "50%", border: `2px solid ${ORANGE}` }} />
-            )}
-            <div>
-              <h1 style={s.title}>Sadhana OS</h1>
-              <p style={s.subtitle}>All Glories to Srila Prabhupada 🙏</p>
-            </div>
-          </div>
-          <div style={s.headerBtns}>
-            <button style={s.langToggle} onClick={() => setHindi(!hindi)}>{hindi ? "EN" : "हिं"}</button>
-            <button style={s.iconBtn} onClick={() => setDark(!dark)}>{dark ? "☀️" : "🌙"}</button>
-          </div>
-        </header>
-
-        <div style={s.calendar}>
-          <input type="date" style={s.dateInput} value={selectedDate.toISOString().substr(0, 10)} onChange={(e) => setSelectedDate(new Date(e.target.value))} />
-        </div>
-
-        <div style={s.scrollArea}>
-
-          {screen === "home" && (
-            <>
-              <div style={s.hero}>
-                <p style={s.heroLabel}>{t.dailyProgress}</p>
-                <h2 style={s.heroBig}>{progress}%</h2>
-                <div style={s.bar}><div style={{ ...s.fill, width: `${progress}%` }} /></div>
-              </div>
-              <div style={s.grid}>
-                <StatCard label={t.score} value={`${score}/100`} s={s} />
-                <StatCard label={t.streak} value={`${streak} 🔥`} s={s} />
-                <StatCard label={t.done} value={`${completedCount}/${tasks.length}`} s={s} />
-                <StatCard label={t.pending} value={pendingCount} s={s} />
-              </div>
-              <h3 style={s.sectionTitle}>{t.todaySadhana}</h3>
-              {tasks.length === 0 && (
-                <div style={s.emptyState}>
-                  <p style={{ fontSize: "32px", margin: "0 0 8px" }}>🙏</p>
-                  <p style={{ margin: 0 }}>{t.noTask}</p>
-                </div>
-              )}
-              {tasks.map((task, i) => (
-                <div key={i} style={task.done ? s.doneTask : s.task}>
-                  <input type="checkbox" style={s.checkbox} checked={task.done} onChange={() => toggleTask(i)} />
-                  <div style={{ flex: 1 }}>
-                    <p style={s.taskTime}>{task.time} · {task.category}</p>
-                    <p style={{ ...s.taskTitle, color: task.done ? theme.doneText : theme.text, textDecoration: task.done ? "line-through" : "none" }}>{task.title}</p>
-                  </div>
-                  <button style={s.deleteBtn} onClick={() => deleteTask(i)}>✕</button>
-                </div>
-              ))}
-              <h3 style={{ ...s.sectionTitle, marginTop: "20px" }}>{t.weeklyOverview}</h3>
-              <div style={s.chart}>
-                {weeklyProgress.map((v, i) => {
-                  const isToday = i === new Date().getDay();
-                  return (
-                    <div key={i} style={s.chartItem}>
-                      <div style={s.chartBarWrap}>
-                        <div style={{ width: "100%", height: `${Math.max(v, 4)}%`, background: isToday ? ORANGE : (dark ? "#444" : "#fed7aa"), borderRadius: "6px 6px 0 0", minHeight: "4px", transition: "height 0.4s" }} />
-                      </div>
-                      <small style={{ fontSize: "10px", color: isToday ? ORANGE : theme.sub, fontWeight: isToday ? "700" : "400" }}>
-                        {["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"][i]}
-                      </small>
-                    </div>
-                  );
-                })}
-              </div>
-            </>
-          )}
-
-          {screen === "add" && (
-            <>
-              <h3 style={s.sectionTitle}>{t.addTitle}</h3>
-              <input style={s.input} placeholder={t.timePlaceholder} value={newTime} onChange={(e) => setNewTime(e.target.value)} />
-              <input style={s.input} placeholder={t.activityPlaceholder} value={newTask} onChange={(e) => setNewTask(e.target.value)} />
-              <button style={s.orangeBtn} onClick={addTask}>{t.addBtn}</button>
-              <button style={s.grayBtn} onClick={resetDay}>{t.resetBtn}</button>
-              {tasks.length > 0 && (
-                <>
-                  <h3 style={{ ...s.sectionTitle, marginTop: "8px" }}>{t.currentTasks}</h3>
-                  {tasks.map((task, i) => (
-                    <div key={i} style={s.task}>
-                      <div style={{ flex: 1 }}>
-                        <p style={s.taskTime}>{task.time}</p>
-                        <p style={{ ...s.taskTitle, color: theme.text }}>{task.title}</p>
-                      </div>
-                      <button style={s.deleteBtn} onClick={() => deleteTask(i)}>✕</button>
-                    </div>
-                  ))}
-                </>
-              )}
-            </>
-          )}
-
-          {screen === "focus" && (
-            <>
-              <h3 style={s.sectionTitle}>{t.timerTitle}</h3>
-              <select style={{ ...s.input, marginBottom: "4px" }} value={timerLabel} onChange={(e) => setTimerLabel(e.target.value)}>
-                <option>Japa</option>
-                <option>Meditation</option>
-                <option>Puja</option>
-                <option>Paath</option>
-                <option>Yoga</option>
-                <option>Svadhyaya</option>
-              </select>
-              <p style={{ margin: "4px 0 0", fontSize: "12px", color: theme.sub, textAlign: "center" }}>{timerLabel} {t.timerRunning}</p>
-              <div style={s.timerDisplay}>{formatTime(timerSecs)}</div>
-              <div style={s.timerRow}>
-                <button style={{ ...s.orangeBtn, margin: 0, flex: 1 }} onClick={timerRunning ? pauseTimer : startTimer}>{timerRunning ? t.pauseBtn : t.startBtn}</button>
-                <button style={{ ...s.grayBtn, margin: 0, flex: 1 }} onClick={resetTimer}>{t.resetTimerBtn}</button>
-              </div>
-              {timerSecs > 0 && !timerRunning && (
-                <div style={{ background: dark ? "#052e16" : "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: "12px", padding: "14px", textAlign: "center", marginTop: "8px" }}>
-                  <p style={{ margin: 0, color: "#16a34a", fontWeight: "600" }}>🙏 {timerLabel} {t.timerDone} {formatTime(timerSecs)}</p>
-                </div>
-              )}
-            </>
-          )}
-
-          {screen === "ekadashi" && (
-            <>
-              <h3 style={s.sectionTitle}>{t.ekTitle}</h3>
-              <p style={{ margin: "0 0 16px", fontSize: "13px", color: theme.sub }}>{t.ekSubtitle}</p>
-              {upcoming.map((e, i) => (
-                <div key={i} style={s.ekCard}>
-                  <div>
-                    <p style={{ margin: "0 0 3px", fontSize: "14px", fontWeight: "600", color: theme.text }}>{e.name}</p>
-                    <p style={{ margin: 0, fontSize: "12px", color: theme.sub }}>{e.date}</p>
-                  </div>
-                  <span style={{ ...s.badge, background: e.dateObj - today < 3 * 86400000 ? "#dc2626" : ORANGE }}>{daysUntil(e.dateObj)}</span>
-                </div>
-              ))}
-            </>
-          )}
-
-          {screen === "report" && (
-            <>
-              <h3 style={s.sectionTitle}>{t.reportTitle}</h3>
-              <div style={s.hero}>
-                <p style={s.heroLabel}>{t.todayScore}</p>
-                <h2 style={s.heroBig}>{score}/100</h2>
-                <div style={s.bar}><div style={{ ...s.fill, width: `${progress}%` }} /></div>
-                <div style={{ display: "flex", gap: "16px", marginTop: "12px" }}>
-                  <span style={{ fontSize: "13px", color: theme.sub }}>✅ {t.done}: <b style={{ color: theme.text }}>{completedCount}</b></span>
-                  <span style={{ fontSize: "13px", color: theme.sub }}>⏳ {t.pending}: <b style={{ color: theme.text }}>{pendingCount}</b></span>
-                  <span style={{ fontSize: "13px", color: theme.sub }}>🔥 {t.streak}: <b style={{ color: ORANGE }}>{streak}</b></span>
-                </div>
-              </div>
-              <label style={{ fontSize: "13px", color: theme.sub, display: "block", marginBottom: "6px" }}>{t.notesLabel}</label>
-              <textarea style={s.textarea} placeholder={t.notesPlaceholder} value={notes} onChange={(e) => setNotes(e.target.value)} />
-              {/* Beautiful Card Share Button */}
-              <button style={s.purpleBtn} onClick={() => setShowShareCard(true)}>
-                🎴 Beautiful Card Share Karo
-              </button>
-              {/* Simple WhatsApp text */}
-              <button style={s.greenBtn} onClick={sendWhatsApp}>{t.whatsappBtn}</button>
-            </>
-          )}
-
-          {screen === "insights" && (
-            <>
-              <h3 style={s.sectionTitle}>{t.insightsTitle}</h3>
-              <div style={{ background: dark ? "#1a1a2e" : "#eff6ff", border: `1px solid ${dark ? "#2d2d5e" : "#bfdbfe"}`, borderRadius: "14px", padding: "16px", marginBottom: "12px" }}>
-                <p style={{ margin: "0 0 8px", fontSize: "14px", fontWeight: "600", color: dark ? "#93c5fd" : "#1d4ed8" }}>{t.analysisTitle}</p>
-                <p style={{ margin: "0 0 6px", fontSize: "13px", color: theme.text }}>• {t.progress}: <b>{progress}%</b> — {progress >= 80 ? t.great : progress >= 50 ? t.ok : t.slow}</p>
-                <p style={{ margin: "0 0 6px", fontSize: "13px", color: theme.text }}>• {t.streak}: <b>{streak}</b> — {streak >= 21 ? t.streakMsg1 : streak >= 7 ? t.streakMsg2 : t.streakMsg3}</p>
-                <p style={{ margin: 0, fontSize: "13px", color: theme.text }}>• {t.score}: <b>{score}/100</b></p>
-              </div>
-              <div style={{ background: dark ? "#1a2e1a" : "#f0fdf4", border: `1px solid ${dark ? "#14532d" : "#bbf7d0"}`, borderRadius: "14px", padding: "16px", marginBottom: "12px" }}>
-                <p style={{ margin: "0 0 8px", fontSize: "14px", fontWeight: "600", color: "#16a34a" }}>{t.suggTitle}</p>
-                {pendingCount > 0 && <p style={{ margin: "0 0 6px", fontSize: "13px", color: theme.text }}>• {pendingCount} {t.suggPending}</p>}
-                <p style={{ margin: 0, fontSize: "13px", color: theme.text }}>• {t.suggBrahma}</p>
-              </div>
-              <div style={{ background: dark ? "#2d1a0e" : "#fff7ed", border: `1px solid ${theme.border}`, borderRadius: "14px", padding: "16px", marginBottom: "16px" }}>
-                <p style={{ margin: "0 0 8px", fontSize: "14px", fontWeight: "600", color: ORANGE }}>{t.shlokaTitle}</p>
-                <p style={{ margin: "0 0 6px", fontSize: "14px", color: theme.text, fontStyle: "italic" }}>"योगः कर्मसु कौशलम्"</p>
-                <p style={{ margin: 0, fontSize: "12px", color: theme.sub }}>Yoga is skill in action. — BG 2.50</p>
-              </div>
-              <button style={s.redBtn} onClick={logout}>{t.logout}</button>
-            </>
-          )}
-
-        </div>
-
-        <nav style={s.nav}>
-          {[
-            { label: "Home", icon: "🏠", id: "home" },
-            { label: "Add", icon: "➕", id: "add" },
-            { label: "Timer", icon: "⏱️", id: "focus" },
-            { label: "Eka", icon: "🌙", id: "ekadashi" },
-            { label: "Report", icon: "📤", id: "report" },
-            { label: "Insights", icon: "🤖", id: "insights" },
-          ].map((n) => (
-            <button key={n.id} style={screen === n.id ? s.navActive : s.navBtn} onClick={() => setScreen(n.id)}>
-              <span style={{ fontSize: "18px" }}>{n.icon}</span>
-              <span>{n.label}</span>
-            </button>
-          ))}
-        </nav>
-
-      </div>
+    <div
+      style={{
+        minHeight: "100vh",
+        background: "#120a04",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 24,
+      }}
+    >
+      <img
+        src="/prabhupada4.jpg"
+        alt=""
+        style={{ width: 130, height: 130, borderRadius: "50%", objectFit: "cover" }}
+      />
+      <h1 style={{ color: "#ff9933", marginTop: 22, fontSize: 26, textAlign: "center" }}>
+        Sadhna OS
+      </h1>
+      <p style={{ color: "#bbb", marginTop: 6, textAlign: "center" }}>
+        All Glories to Srila Prabhupada
+      </p>
+      <button
+        onClick={go}
+        style={{
+          marginTop: 30,
+          background: "#fff",
+          color: "#333",
+          border: "none",
+          padding: "13px 26px",
+          borderRadius: 10,
+          fontSize: 16,
+          fontWeight: 600,
+          cursor: "pointer",
+        }}
+      >
+        Sign in with Google
+      </button>
     </div>
   );
 }
 
-function StatCard({ label, value, s }) {
+/* ──────────────────────────────────────────────
+   Main App
+─────────────────────────────────────────────── */
+export default function App() {
+  const [splash, setSplash] = useState(true);
+  const [user, setUser] = useState(null);
+  const [authReady, setAuthReady] = useState(false);
+  const [lang, setLang] = useState("hi");
+  const [dark, setDark] = useState(true);
+  const [screen, setScreen] = useState("home");
+  const [data, setData] = useState({ log: {}, custom: {} });
+
+  const today = dateKey();
+
+  useEffect(() => {
+    const un = onAuthStateChanged(auth, (u) => {
+      setUser(u);
+      setAuthReady(true);
+    });
+    return un;
+  }, []);
+
+  // live sync of user doc
+  useEffect(() => {
+    if (!user) return;
+    const ref = doc(db, "users", user.uid);
+    const un = onSnapshot(ref, (snap) => {
+      if (snap.exists()) setData({ log: {}, custom: {}, ...snap.data() });
+    });
+    return un;
+  }, [user]);
+
+  const save = async (patch) => {
+    if (!user) return;
+    const next = { ...data, ...patch };
+    setData(next);
+    await setDoc(
+      doc(db, "users", user.uid),
+      { ...next, name: user.displayName || "", photo: user.photoURL || "" },
+      { merge: true }
+    );
+  };
+
+  const dayLog = data.log?.[today] || {};
+  const setField = (id, val) =>
+    save({ log: { ...data.log, [today]: { ...dayLog, [id]: val } } });
+
+  const customToday = data.custom?.[today] || [];
+  const setCustom = (arr) =>
+    save({ custom: { ...data.custom, [today]: arr } });
+
+  const doneCount =
+    BOOL_IDS.filter((id) => dayLog[id]).length +
+    customToday.filter((c) => c.done).length;
+  const totalCount = BOOL_IDS.length + customToday.length;
+  const pct = totalCount ? Math.round((doneCount / totalCount) * 100) : 0;
+
+  /* theme */
+  const C = dark
+    ? { bg: "#0f0a05", card: "#1c140b", text: "#f3ede2", sub: "#9b8f7d", line: "#2e2316" }
+    : { bg: "#fdf8f0", card: "#fff", text: "#2a2118", sub: "#7a6f5e", line: "#ece2d0" };
+  const accent = "#ff9933";
+
+  const S = {
+    page: { background: C.bg, minHeight: "100vh", color: C.text, fontFamily: "system-ui, sans-serif", paddingBottom: 78 },
+    head: { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px", borderBottom: `1px solid ${C.line}`, position: "sticky", top: 0, background: C.bg, zIndex: 5 },
+    card: { background: C.card, borderRadius: 14, padding: 16, margin: "12px 16px", border: `1px solid ${C.line}` },
+    row: { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 0", borderBottom: `1px solid ${C.line}` },
+    btn: { background: accent, color: "#1a0e05", border: "none", padding: "12px 18px", borderRadius: 10, fontSize: 15, fontWeight: 700, cursor: "pointer", width: "100%" },
+    chk: (on) => ({ width: 26, height: 26, borderRadius: 7, border: `2px solid ${on ? accent : C.sub}`, background: on ? accent : "transparent", color: "#1a0e05", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", fontWeight: 800 }),
+    input: { background: C.bg, color: C.text, border: `1px solid ${C.line}`, borderRadius: 8, padding: "8px 10px", fontSize: 14 },
+    tabs: { position: "fixed", bottom: 0, left: 0, right: 0, display: "flex", background: C.card, borderTop: `1px solid ${C.line}` },
+    tab: (a) => ({ flex: 1, textAlign: "center", padding: "10px 0", fontSize: 11, color: a ? accent : C.sub, cursor: "pointer", fontWeight: a ? 700 : 500 }),
+  };
+
+  if (splash) return <SplashScreen onDone={() => setSplash(false)} />;
+  if (!authReady)
+    return <div style={{ background: C.bg, minHeight: "100vh" }} />;
+  if (!user) return <Login lang={lang} />;
+
+  const Header = () => (
+    <div style={S.head}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        {user.photoURL && (
+          <img src={user.photoURL} alt="" style={{ width: 34, height: 34, borderRadius: "50%" }} />
+        )}
+        <div>
+          <div style={{ fontWeight: 700, fontSize: 14 }}>
+            {lang === "hi" ? "हरे कृष्ण" : "Hare Krishna"}, {user.displayName?.split(" ")[0]}
+          </div>
+          <div style={{ fontSize: 10, color: accent }}>All Glories to Srila Prabhupada</div>
+        </div>
+      </div>
+      <div style={{ display: "flex", gap: 8 }}>
+        <button onClick={() => setLang(lang === "hi" ? "en" : "hi")} style={{ ...S.input, cursor: "pointer" }}>
+          {lang === "hi" ? "EN" : "हिं"}
+        </button>
+        <button onClick={() => setDark(!dark)} style={{ ...S.input, cursor: "pointer" }}>
+          {dark ? "☀" : "🌙"}
+        </button>
+      </div>
+    </div>
+  );
+
+  /* ───── Screens ───── */
+  const Home = () => (
+    <>
+      <div style={S.card}>
+        <div style={{ color: C.sub, fontSize: 13 }}>{tr("progress", lang)}</div>
+        <div style={{ fontSize: 34, fontWeight: 800, color: accent, marginTop: 4 }}>
+          {pct}%
+        </div>
+        <div style={{ height: 8, background: C.bg, borderRadius: 6, marginTop: 10, overflow: "hidden" }}>
+          <div style={{ width: pct + "%", height: "100%", background: accent }} />
+        </div>
+        <div style={{ display: "flex", justifyContent: "space-between", marginTop: 10, fontSize: 13 }}>
+          <span style={{ color: "#5cb85c" }}>{tr("done", lang)}: {doneCount}</span>
+          <span style={{ color: C.sub }}>{tr("pending", lang)}: {totalCount - doneCount}</span>
+        </div>
+      </div>
+
+      <div style={S.card}>
+        <div style={{ fontWeight: 700, marginBottom: 6 }}>{tr("todaySadhna", lang)}</div>
+        {FIXED.map((f) => (
+          <div key={f.id} style={S.row}>
+            <span style={{ fontSize: 14 }}>{lang === "hi" ? f.hi : f.en}</span>
+            {f.type === "bool" ? (
+              <div style={S.chk(!!dayLog[f.id])} onClick={() => setField(f.id, !dayLog[f.id])}>
+                {dayLog[f.id] ? "✓" : ""}
+              </div>
+            ) : (
+              <input
+                type="time"
+                value={dayLog[f.id] || ""}
+                onChange={(e) => setField(f.id, e.target.value)}
+                style={S.input}
+              />
+            )}
+          </div>
+        ))}
+        {customToday.map((c, idx) => (
+          <div key={idx} style={S.row}>
+            <span style={{ fontSize: 14 }}>{c.label}</span>
+            <div
+              style={S.chk(c.done)}
+              onClick={() => {
+                const a = [...customToday];
+                a[idx] = { ...c, done: !c.done };
+                setCustom(a);
+              }}
+            >
+              {c.done ? "✓" : ""}
+            </div>
+          </div>
+        ))}
+      </div>
+    </>
+  );
+
+  function AddScreen() {
+    const [val, setVal] = useState("");
+    return (
+      <div style={S.card}>
+        <div style={{ fontWeight: 700, marginBottom: 10 }}>
+          {lang === "hi" ? "अपना कार्य जोड़ें" : "Add a custom task"}
+        </div>
+        <input
+          value={val}
+          onChange={(e) => setVal(e.target.value)}
+          placeholder={lang === "hi" ? "जैसे: तुलसी सेवा" : "e.g. Tulsi seva"}
+          style={{ ...S.input, width: "100%", marginBottom: 10 }}
+        />
+        <button
+          style={S.btn}
+          onClick={() => {
+            if (!val.trim()) return;
+            setCustom([...customToday, { label: val.trim(), done: false }]);
+            setVal("");
+          }}
+        >
+          {lang === "hi" ? "जोड़ें" : "Add"}
+        </button>
+        <div style={{ marginTop: 14 }}>
+          {customToday.map((c, idx) => (
+            <div key={idx} style={S.row}>
+              <span>{c.label}</span>
+              <button
+                onClick={() => setCustom(customToday.filter((_, i) => i !== idx))}
+                style={{ background: "none", border: "none", color: "#d9534f", cursor: "pointer", fontSize: 13 }}
+              >
+                {lang === "hi" ? "हटाएं" : "Remove"}
+              </button>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  function TimerScreen() {
+    const [mode, setMode] = useState("reading"); // reading | chanting
+    const [sec, setSec] = useState(0);
+    const [run, setRun] = useState(false);
+    const ref = useRef();
+    useEffect(() => {
+      if (run) ref.current = setInterval(() => setSec((s) => s + 1), 1000);
+      return () => clearInterval(ref.current);
+    }, [run]);
+    const mm = String(Math.floor(sec / 60)).padStart(2, "0");
+    const ss = String(sec % 60).padStart(2, "0");
+    return (
+      <div style={S.card}>
+        <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+          {["reading", "chanting"].map((m) => (
+            <button
+              key={m}
+              onClick={() => { setMode(m); setSec(0); setRun(false); }}
+              style={{
+                flex: 1,
+                ...S.input,
+                cursor: "pointer",
+                background: mode === m ? accent : C.bg,
+                color: mode === m ? "#1a0e05" : C.text,
+                fontWeight: 700,
+              }}
+            >
+              {m === "reading"
+                ? lang === "hi" ? "पठन (निजी)" : "Reading (personal)"
+                : lang === "hi" ? "जप / श्रवण" : "Chanting / Hearing"}
+            </button>
+          ))}
+        </div>
+        <div style={{ textAlign: "center", fontSize: 56, fontWeight: 800, color: accent }}>
+          {mm}:{ss}
+        </div>
+        <div style={{ display: "flex", gap: 10, marginTop: 18 }}>
+          <button style={{ ...S.btn, background: run ? "#d9534f" : accent }} onClick={() => setRun(!run)}>
+            {run ? (lang === "hi" ? "रोकें" : "Pause") : (lang === "hi" ? "शुरू" : "Start")}
+          </button>
+          <button style={{ ...S.btn, background: C.bg, color: C.text, border: `1px solid ${C.line}` }} onClick={() => { setSec(0); setRun(false); }}>
+            {lang === "hi" ? "रीसेट" : "Reset"}
+          </button>
+        </div>
+        {mode === "reading" && (
+          <button
+            style={{ ...S.btn, marginTop: 12, background: "#5cb85c", color: "#fff" }}
+            onClick={() => { setField("reading2hr", true); setRun(false); alert(lang === "hi" ? "पठन पूर्ण के रूप में चिह्नित" : "Reading marked done"); }}
+          >
+            {lang === "hi" ? "पठन पूर्ण चिह्नित करें" : "Mark reading done"}
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  function PlaylistScreen() {
+    return (
+      <div>
+        {PLAYLISTS.map((p) => (
+          <div key={p.id} style={S.card}>
+            <div style={{ fontWeight: 700, marginBottom: 8 }}>{p.title}</div>
+            <div style={{ position: "relative", paddingTop: "56%", borderRadius: 10, overflow: "hidden" }}>
+              <iframe
+                title={p.title}
+                src={`https://www.youtube.com/embed/videoseries?list=${p.id}`}
+                style={{ position: "absolute", inset: 0, width: "100%", height: "100%", border: 0 }}
+                allowFullScreen
+              />
+            </div>
+            <a
+              href={`https://youtube.com/playlist?list=${p.id}`}
+              target="_blank"
+              rel="noreferrer"
+              style={{ color: accent, fontSize: 13, display: "inline-block", marginTop: 8 }}
+            >
+              {lang === "hi" ? "YouTube में खोलें" : "Open in YouTube"} →
+            </a>
+          </div>
+        ))}
+        <div style={S.card}>
+          <div style={{ fontSize: 14, marginBottom: 8 }}>
+            {lang === "hi" ? "आज कौन सा प्रवचन सुना?" : "Which lecture did you hear today?"}
+          </div>
+          <input
+            value={dayLog.hearingExtraNote || ""}
+            onChange={(e) => setField("hearingExtraNote", e.target.value)}
+            placeholder={lang === "hi" ? "प्रवचन का नाम / नंबर" : "Lecture name / number"}
+            style={{ ...S.input, width: "100%" }}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  function ReportScreen() {
+    const [showCard, setShowCard] = useState(false);
+    const msg =
+      `🙏 ${lang === "hi" ? "आज की साधना" : "Today's Sadhna"} — ${prettyDate(today)}\n` +
+      `${user.displayName}\n` +
+      FIXED.filter((f) => f.type === "bool")
+        .map((f) => `${dayLog[f.id] ? "✅" : "⬜"} ${f.en}`)
+        .join("\n") +
+      `\n\n${doneCount}/${totalCount} • All Glories to Srila Prabhupada`;
+    return (
+      <div>
+        <div style={S.card}>
+          <div style={{ fontWeight: 700, marginBottom: 4 }}>
+            {prettyDate(today)} — {doneCount}/{totalCount}
+          </div>
+          {FIXED.filter((f) => f.type === "bool").map((f) => (
+            <div key={f.id} style={S.row}>
+              <span style={{ fontSize: 14 }}>{lang === "hi" ? f.hi : f.en}</span>
+              <span style={{ color: dayLog[f.id] ? "#5cb85c" : C.sub, fontWeight: 700 }}>
+                {dayLog[f.id] ? tr("done", lang) : tr("pending", lang)}
+              </span>
+            </div>
+          ))}
+          {customToday.map((c, i) => (
+            <div key={i} style={S.row}>
+              <span style={{ fontSize: 14 }}>{c.label}</span>
+              <span style={{ color: c.done ? "#5cb85c" : C.sub, fontWeight: 700 }}>
+                {c.done ? tr("done", lang) : tr("pending", lang)}
+              </span>
+            </div>
+          ))}
+          <button
+            style={{ ...S.btn, marginTop: 14, background: "#25D366", color: "#fff" }}
+            onClick={() =>
+              window.open("https://wa.me/?text=" + encodeURIComponent(msg), "_blank")
+            }
+          >
+            {lang === "hi" ? "WhatsApp पर भेजें" : "Share on WhatsApp"}
+          </button>
+          <button
+            style={{ ...S.btn, marginTop: 10, background: "#7b3fe4", color: "#fff" }}
+            onClick={() => setShowCard(true)}
+          >
+            {lang === "hi" ? "सुंदर कार्ड बनाएं" : "Beautiful Card"}
+          </button>
+        </div>
+
+        {showCard && (
+          <div
+            onClick={() => setShowCard(false)}
+            style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.8)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50, padding: 20 }}
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              style={{ background: "#1a0e05", border: `2px solid ${accent}`, borderRadius: 16, padding: 24, maxWidth: 340, width: "100%", textAlign: "center" }}
+            >
+              <img src="/prabhupada4.jpg" alt="" style={{ width: 90, height: 90, borderRadius: "50%", objectFit: "cover" }} />
+              <div style={{ color: accent, fontWeight: 700, marginTop: 10 }}>
+                All Glories to Srila Prabhupada
+              </div>
+              <div style={{ color: "#fff", fontWeight: 700, marginTop: 14, fontSize: 18 }}>
+                {user.displayName}
+              </div>
+              <div style={{ color: "#bbb", fontSize: 13 }}>{prettyDate(today)}</div>
+              <div style={{ color: accent, fontSize: 40, fontWeight: 800, marginTop: 14 }}>
+                {doneCount}/{totalCount}
+              </div>
+              <div style={{ color: "#bbb", fontSize: 13 }}>Sadhna completed</div>
+              <button
+                style={{ ...S.btn, marginTop: 18 }}
+                onClick={() =>
+                  window.open("https://wa.me/?text=" + encodeURIComponent(msg), "_blank")
+                }
+              >
+                {lang === "hi" ? "शेयर करें" : "Share"}
+              </button>
+              <button
+                onClick={() => setShowCard(false)}
+                style={{ background: "none", border: "none", color: "#888", marginTop: 12, cursor: "pointer" }}
+              >
+                {lang === "hi" ? "बंद करें" : "Close"}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  function AIScreen() {
+    const [q, setQ] = useState("");
+    const [chat, setChat] = useState([]);
+    const [loading, setLoading] = useState(false);
+    const ask = async () => {
+      if (!q.trim() || loading) return;
+      const question = q.trim();
+      setChat((c) => [...c, { r: "u", t: question }]);
+      setQ("");
+      setLoading(true);
+      try {
+        const res = await fetch("/api/ask", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ question }),
+        });
+        const d = await res.json();
+        setChat((c) => [...c, { r: "a", t: d.answer || d.error || "..." }]);
+      } catch (e) {
+        setChat((c) => [...c, { r: "a", t: "Error: " + e.message }]);
+      }
+      setLoading(false);
+    };
+    return (
+      <div style={S.card}>
+        <div style={{ fontWeight: 700, marginBottom: 4 }}>
+          {lang === "hi" ? "प्रभुपाद की पुस्तकों से पूछें" : "Ask from Prabhupada's books"}
+        </div>
+        <div style={{ color: C.sub, fontSize: 12, marginBottom: 12 }}>
+          {lang === "hi"
+            ? "गीता, भागवतम् आदि के आधार पर उत्तर"
+            : "Answers grounded in Gita, Bhagavatam etc."}
+        </div>
+        <div style={{ minHeight: 160, maxHeight: 340, overflowY: "auto", marginBottom: 12 }}>
+          {chat.map((m, i) => (
+            <div
+              key={i}
+              style={{
+                background: m.r === "u" ? accent : C.bg,
+                color: m.r === "u" ? "#1a0e05" : C.text,
+                padding: "10px 12px",
+                borderRadius: 10,
+                margin: "6px 0",
+                fontSize: 14,
+                whiteSpace: "pre-wrap",
+              }}
+            >
+              {m.t}
+            </div>
+          ))}
+          {loading && <div style={{ color: C.sub, fontSize: 13 }}>…</div>}
+        </div>
+        <div style={{ display: "flex", gap: 8 }}>
+          <input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && ask()}
+            placeholder={lang === "hi" ? "अपना प्रश्न लिखें…" : "Type your question…"}
+            style={{ ...S.input, flex: 1 }}
+          />
+          <button onClick={ask} style={{ ...S.btn, width: "auto", padding: "10px 18px" }}>
+            {lang === "hi" ? "पूछें" : "Ask"}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  function InsightsScreen() {
+    const last7 = [...Array(7)].map((_, i) => {
+      const d = new Date();
+      d.setDate(d.getDate() - (6 - i));
+      const k = dateKey(d);
+      const lg = data.log?.[k] || {};
+      const cu = data.custom?.[k] || [];
+      const dn = BOOL_IDS.filter((id) => lg[id]).length + cu.filter((c) => c.done).length;
+      const tt = BOOL_IDS.length + cu.length;
+      return { k, pct: tt ? Math.round((dn / tt) * 100) : 0 };
+    });
+    return (
+      <div>
+        <div style={S.card}>
+          <div style={{ fontWeight: 700, marginBottom: 12 }}>
+            {lang === "hi" ? "पिछले 7 दिन" : "Last 7 days"}
+          </div>
+          <div style={{ display: "flex", alignItems: "flex-end", gap: 8, height: 130 }}>
+            {last7.map((x) => (
+              <div key={x.k} style={{ flex: 1, textAlign: "center" }}>
+                <div
+                  style={{
+                    height: Math.max(4, x.pct) + "%",
+                    background: accent,
+                    borderRadius: 4,
+                    transition: "height .3s",
+                  }}
+                />
+                <div style={{ fontSize: 9, color: C.sub, marginTop: 6 }}>
+                  {x.k.slice(8)}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div style={S.card}>
+          <button
+            onClick={() => signOut(auth)}
+            style={{ ...S.btn, background: "#d9534f", color: "#fff" }}
+          >
+            {tr("logout", lang)}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const screens = {
+    home: <Home />,
+    add: <AddScreen />,
+    timer: <TimerScreen />,
+    playlist: <PlaylistScreen />,
+    report: <ReportScreen />,
+    ai: <AIScreen />,
+    insights: <InsightsScreen />,
+  };
+  const tabIds = ["home", "add", "timer", "playlist", "report", "ai", "insights"];
+
   return (
-    <div style={s.card}>
-      <p style={s.cardLabel}>{label}</p>
-      <h2 style={s.cardValue}>{value}</h2>
+    <div style={S.page}>
+      <Header />
+      {screens[screen]}
+      <div style={S.tabs}>
+        {tabIds.map((id) => (
+          <div key={id} style={S.tab(screen === id)} onClick={() => setScreen(id)}>
+            {tr(id, lang)}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
