@@ -3,6 +3,7 @@ import { db, auth } from './firebase';
 import { doc, onSnapshot, updateDoc, setDoc } from "firebase/firestore";
 import { GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "firebase/auth";
 import lang from './lang';
+import ShareCard from './ShareCard';
 
 const lightTheme = {
   bg: "#fff7ed", card: "#ffffff", text: "#1f2937", sub: "#6b7280",
@@ -43,74 +44,25 @@ function SplashScreen({ onDone }) {
   };
 
   return (
-    <div
-      onClick={goNext}
-      style={{
-        position: "fixed", inset: 0, zIndex: 9999,
-        background: "#000",
-        display: "flex", flexDirection: "column",
-        alignItems: "center", justifyContent: "center",
-        overflow: "hidden",
-        cursor: "pointer",
-        userSelect: "none",
-      }}
-    >
-      {/* Image */}
-      <div style={{
-        position: "absolute", inset: 0,
-        opacity: fade ? 1 : 0,
-        transition: "opacity 0.4s ease",
-      }}>
-        <img
-          src={SPLASH_IMAGES[current]}
-          alt="Srila Prabhupada"
-          style={{
-            width: "100%", height: "100%",
-            objectFit: "cover",
-            filter: "brightness(0.55)",
-          }}
-        />
+    <div onClick={goNext} style={{
+      position: "fixed", inset: 0, zIndex: 9999,
+      background: "#000", display: "flex", flexDirection: "column",
+      alignItems: "center", justifyContent: "center",
+      overflow: "hidden", cursor: "pointer", userSelect: "none",
+    }}>
+      <div style={{ position: "absolute", inset: 0, opacity: fade ? 1 : 0, transition: "opacity 0.4s ease" }}>
+        <img src={SPLASH_IMAGES[current]} alt="Srila Prabhupada" style={{ width: "100%", height: "100%", objectFit: "cover", filter: "brightness(0.55)" }} />
       </div>
-
-      {/* Gradient */}
-      <div style={{
-        position: "absolute", bottom: 0, left: 0, right: 0,
-        height: "60%",
-        background: "linear-gradient(to top, rgba(0,0,0,0.85) 0%, transparent 100%)",
-        pointerEvents: "none",
-      }} />
-
-      {/* Text */}
-      <div style={{
-        position: "absolute", bottom: "60px",
-        textAlign: "center", padding: "0 32px",
-        opacity: fade ? 1 : 0,
-        transition: "opacity 0.4s ease",
-        pointerEvents: "none",
-      }}>
-        <p style={{ margin: "0 0 8px", fontSize: "13px", color: "rgba(255,255,255,0.6)", letterSpacing: "0.15em", textTransform: "uppercase" }}>
-          Sadhana OS
-        </p>
-        <h1 style={{ margin: "0 0 4px", fontSize: "26px", fontWeight: "700", color: "#fff", fontFamily: "'Segoe UI', system-ui, sans-serif", lineHeight: 1.3 }}>
-          All Glories to
-        </h1>
-        <h1 style={{ margin: "0 0 20px", fontSize: "26px", fontWeight: "700", color: ORANGE, fontFamily: "'Segoe UI', system-ui, sans-serif", lineHeight: 1.3 }}>
-          Srila Prabhupada
-        </h1>
-        <p style={{ margin: 0, fontSize: "13px", color: "rgba(255,255,255,0.4)" }}>
-          Tap to continue →
-        </p>
+      <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: "60%", background: "linear-gradient(to top, rgba(0,0,0,0.85) 0%, transparent 100%)", pointerEvents: "none" }} />
+      <div style={{ position: "absolute", bottom: "60px", textAlign: "center", padding: "0 32px", opacity: fade ? 1 : 0, transition: "opacity 0.4s ease", pointerEvents: "none" }}>
+        <p style={{ margin: "0 0 8px", fontSize: "13px", color: "rgba(255,255,255,0.6)", letterSpacing: "0.15em", textTransform: "uppercase" }}>Sadhana OS</p>
+        <h1 style={{ margin: "0 0 4px", fontSize: "26px", fontWeight: "700", color: "#fff", fontFamily: "'Segoe UI', system-ui, sans-serif", lineHeight: 1.3 }}>All Glories to</h1>
+        <h1 style={{ margin: "0 0 20px", fontSize: "26px", fontWeight: "700", color: ORANGE, fontFamily: "'Segoe UI', system-ui, sans-serif", lineHeight: 1.3 }}>Srila Prabhupada</h1>
+        <p style={{ margin: 0, fontSize: "13px", color: "rgba(255,255,255,0.4)" }}>Tap to continue →</p>
       </div>
-
-      {/* Dots */}
       <div style={{ position: "absolute", bottom: "24px", display: "flex", gap: "8px", pointerEvents: "none" }}>
         {SPLASH_IMAGES.map((_, i) => (
-          <div key={i} style={{
-            width: i === current ? "24px" : "8px",
-            height: "8px", borderRadius: "99px",
-            background: i === current ? ORANGE : "rgba(255,255,255,0.3)",
-            transition: "all 0.3s ease",
-          }} />
+          <div key={i} style={{ width: i === current ? "24px" : "8px", height: "8px", borderRadius: "99px", background: i === current ? ORANGE : "rgba(255,255,255,0.3)", transition: "all 0.3s ease" }} />
         ))}
       </div>
     </div>
@@ -120,6 +72,7 @@ function SplashScreen({ onDone }) {
 // ── Main App ──────────────────────────────────────────────
 export default function App() {
   const [showSplash, setShowSplash] = useState(true);
+  const [showShareCard, setShowShareCard] = useState(false);
   const [user, setUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [tasks, setTasks] = useState([]);
@@ -141,10 +94,7 @@ export default function App() {
   const t = hindi ? lang.hi : lang.en;
 
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, (u) => {
-      setUser(u);
-      setAuthLoading(false);
-    });
+    const unsub = onAuthStateChanged(auth, (u) => { setUser(u); setAuthLoading(false); });
     return () => unsub();
   }, []);
 
@@ -154,11 +104,7 @@ export default function App() {
     catch (e) { console.error(e); alert("Login failed."); }
   };
 
-  const logout = async () => {
-    await signOut(auth);
-    setTasks([]);
-    setStreak(0);
-  };
+  const logout = async () => { await signOut(auth); setTasks([]); setStreak(0); };
 
   useEffect(() => {
     if (!user) return;
@@ -185,9 +131,7 @@ export default function App() {
     const completed = tasks.filter((tk) => tk.done).length;
     const prog = tasks.length ? Math.round((completed / tasks.length) * 100) : 0;
     const todayIndex = new Date(selectedDate).getDay();
-    setWeeklyProgress((prev) => {
-      const copy = [...prev]; copy[todayIndex] = prog; return copy;
-    });
+    setWeeklyProgress((prev) => { const copy = [...prev]; copy[todayIndex] = prog; return copy; });
   }, [tasks]);
 
   const markStreakDone = () => {
@@ -261,9 +205,7 @@ export default function App() {
   const resetTimer = () => { pauseTimer(); setTimerSecs(0); };
   const formatTime = (s) => {
     const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
-    return h > 0
-      ? `${h}:${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}`
-      : `${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
+    return h > 0 ? `${h}:${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}` : `${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
   };
 
   const sendWhatsApp = () => {
@@ -337,6 +279,7 @@ export default function App() {
     orangeBtn: { width: "100%", padding: "13px", background: ORANGE, color: "#fff", border: "none", borderRadius: "12px", fontSize: "15px", fontWeight: "600", cursor: "pointer", marginBottom: "10px" },
     grayBtn: { width: "100%", padding: "13px", background: dark ? "#333" : "#e5e7eb", color: theme.text, border: "none", borderRadius: "12px", fontSize: "15px", fontWeight: "600", cursor: "pointer", marginBottom: "10px" },
     greenBtn: { width: "100%", padding: "13px", background: "#16a34a", color: "#fff", border: "none", borderRadius: "12px", fontSize: "15px", fontWeight: "600", cursor: "pointer", marginBottom: "10px" },
+    purpleBtn: { width: "100%", padding: "13px", background: "#7c3aed", color: "#fff", border: "none", borderRadius: "12px", fontSize: "15px", fontWeight: "600", cursor: "pointer", marginBottom: "10px" },
     redBtn: { width: "100%", padding: "13px", background: "#dc2626", color: "#fff", border: "none", borderRadius: "12px", fontSize: "15px", fontWeight: "600", cursor: "pointer", marginBottom: "10px" },
     nav: { display: "flex", borderTop: `1px solid ${theme.border}`, background: theme.navBg, padding: "8px 4px" },
     navBtn: { flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: "2px", padding: "6px 2px", background: "transparent", border: "none", cursor: "pointer", color: theme.sub, fontSize: "10px", borderRadius: "10px" },
@@ -354,10 +297,8 @@ export default function App() {
     langToggle: { background: hindi ? ORANGE : "transparent", border: `1px solid ${hindi ? ORANGE : theme.border}`, borderRadius: "20px", padding: "4px 10px", cursor: "pointer", fontSize: "12px", fontWeight: "600", color: hindi ? "#fff" : theme.sub, transition: "all 0.2s" },
   };
 
-  // Splash
   if (showSplash) return <SplashScreen onDone={() => setShowSplash(false)} />;
 
-  // Loading
   if (authLoading) {
     return (
       <div style={s.loginPage}>
@@ -369,7 +310,6 @@ export default function App() {
     );
   }
 
-  // Login
   if (!user) {
     return (
       <div style={s.loginPage}>
@@ -387,18 +327,29 @@ export default function App() {
             {t.loginBtn}
           </button>
           <p style={{ margin: "20px 0 0", fontSize: "12px", color: theme.sub }}>{t.loginFooter}</p>
-          <button style={{ ...s.langToggle, marginTop: "16px" }} onClick={() => setHindi(!hindi)}>
-            {hindi ? "EN" : "हिं"}
-          </button>
+          <button style={{ ...s.langToggle, marginTop: "16px" }} onClick={() => setHindi(!hindi)}>{hindi ? "EN" : "हिं"}</button>
         </div>
       </div>
     );
   }
 
-  // Main App
   return (
     <div style={s.page}>
       <div style={s.phone}>
+
+        {/* ShareCard overlay */}
+        {showShareCard && (
+          <ShareCard
+            user={user}
+            progress={progress}
+            score={score}
+            streak={streak}
+            completedCount={completedCount}
+            totalCount={tasks.length}
+            date={selectedDate}
+            onClose={() => setShowShareCard(false)}
+          />
+        )}
 
         <header style={s.header}>
           <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
@@ -551,6 +502,11 @@ export default function App() {
               </div>
               <label style={{ fontSize: "13px", color: theme.sub, display: "block", marginBottom: "6px" }}>{t.notesLabel}</label>
               <textarea style={s.textarea} placeholder={t.notesPlaceholder} value={notes} onChange={(e) => setNotes(e.target.value)} />
+              {/* Beautiful Card Share Button */}
+              <button style={s.purpleBtn} onClick={() => setShowShareCard(true)}>
+                🎴 Beautiful Card Share Karo
+              </button>
+              {/* Simple WhatsApp text */}
               <button style={s.greenBtn} onClick={sendWhatsApp}>{t.whatsappBtn}</button>
             </>
           )}
