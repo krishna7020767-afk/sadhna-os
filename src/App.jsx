@@ -66,57 +66,67 @@ const QUOTES = [
   {
     text: "So far as controlling 'kama' or lust, best thing is don't eat any highly spiced food stuffs and always think of Krishna. Chant regularly.",
     ref: "Letter to Niranjana - Calcutta 27 May, 1971",
-    img: "/prabhupada1.jpg"
+    img: "/p1.jpg"
   },
   {
     text: "If you think of Krishna twenty-four hours, Krishna will think of you twenty-six hours. (laughter) Krishna is so kind. If you do some service for Krishna, Krishna will reward you hundred times.",
     ref: "Srila Prabhupada Lecture SB 01.14.44 - New York",
-    img: "/prabhupada2.jpg"
+    img: "/p2.jpg"
   },
   {
     text: "The disciple's duty is to be ready always to serve the spiritual master, at any cost.",
     ref: "Los Angeles, June 23, 1972",
-    img: "/prabhupada3.jpg"
+    img: "/p3.jpg"
   },
   {
     text: "Hold my hand and I promise to take you back to Krishna!",
     ref: "Srila Prabhupada",
-    img: "/prabhupada4.jpg"
+    img: "/p4.jpg"
   },
   {
     text: "Even after trying our best, if we fail, Krishna will help us. Just like a child tries his best, but he falls down. The mother takes up and 'All right, come on. Walk' Like that!",
     ref: "Morning Walk March 23, 1968",
-    img: "/prabhupada1.jpg"
+    img: "/p5.jpg"
   },
   {
     text: "Without attentive hearing our Japa will become mechanical and tasteless. Chant your Japa with utmost attention.",
     ref: "Srila Prabhupada",
-    img: "/prabhupada2.jpg"
+    img: "/p6.jpg"
   },
   {
     text: "But work hard here. Not that eating, sleeping. No. That cannot be done. They must be engaged twenty-four hours. That is wanted. It is not a lazy free hotel. Anyone who lives here, must be engaged twenty-four hours.",
     ref: "REF: Room Conversation - September 5, 1976, Vrindavana",
-    img: "/prabhupada3.jpg"
+    img: "/p7.jpg"
   },
   {
     text: "Obedience is the first discipline. If you do not obey the representative, authority, then there cannot be any discipline. Then everything will be topsy-turvy.",
     ref: "REF: Room Conversation - Vrindavana, March 16, 1974",
-    img: "/prabhupada4.jpg"
+    img: "/p8.jpg"
   },
   {
     text: "The best devotee sees, 'Everyone is better than me'. Just like Caitanya-caritamrta's author, Krsnadasa Kaviraja says: jagāi mādhāi haite muñi se pāpistha purisera kita haite muni se laghista",
     ref: "Srila Prabhupada",
-    img: "/prabhupada1.jpg"
+    img: "/p9.jpg"
   },
   {
     text: "Let us all obey the Supreme Lord, whose hand is in everything, without exception.",
     ref: "Ref: Srimad Bhagavatam 2.10.51 Purport",
-    img: "/prabhupada2.jpg"
+    img: "/p10.jpg"
   },
   {
     text: "The argument that 'We do not see Krsna personally. How we can satisfy Him?'... You satisfy your spiritual master, then Krsna is pleased. Yasya prasādād bhagavat-prasādo yasyāprasādāt...",
     ref: "REF: SB.1.5.23 — Vrindavana, August 4, 1974",
-    img: "/prabhupada3.jpg"
+    img: "/p11.jpg"
+  },
+  {
+    text: "Chanting Hare Krishna is our life and soul. Without chanting, we cannot live. Just like a fish cannot live without water.",
+    ref: "Srila Prabhupada",
+    img: "/p12.jpg"
+  },
+  {
+    text: "The spiritual master is the transparent via medium to Krishna. If you keep the via medium transparent, then you'll be able to see Krishna.",
+    ref: "Srila Prabhupada",
+    img: "/p13.jpg"
   },
 ];
 
@@ -284,7 +294,7 @@ function Login() {
       }}
     >
       <img
-        src="/prabhupada4.jpg"
+        src="/p13.jpg"
         alt=""
         style={{ width: 140, height: 140, borderRadius: "50%", objectFit: "cover", border: "3px solid #ff9933" }}
       />
@@ -673,7 +683,7 @@ export default function App() {
               onClick={(e) => e.stopPropagation()}
               style={{ background: "#1a0e05", border: `2px solid ${accent}`, borderRadius: 16, padding: 28, maxWidth: 360, width: "100%", textAlign: "center" }}
             >
-              <img src="/prabhupada4.jpg" alt="" style={{ width: 100, height: 100, borderRadius: "50%", objectFit: "cover" }} />
+              <img src="/p1.jpg" alt="" style={{ width: 100, height: 100, borderRadius: "50%", objectFit: "cover" }} />
               <div style={{ color: accent, fontWeight: 700, marginTop: 12, fontSize: 16 }}>
                 All Glories to Srila Prabhupada
               </div>
