@@ -62,92 +62,121 @@ const T = {
 const tr = (k, lang) => (T[k] ? T[k][lang] : k);
 
 /* ──────────────────────────────────────────────
-   Splash - Auto-slide, shows every time
+   Splash - 13 images, tap to skip, line animation
 ─────────────────────────────────────────────── */
 function SplashScreen({ onDone }) {
   const imgs = [
-    "/prabhupada1.jpg",
-    "/prabhupada2.jpg",
-    "/prabhupada3.jpg",
-    "/prabhupada4.jpg",
+    "/p1.jpg", "/p2.jpg", "/p3.jpg", "/p4.jpg", "/p5.jpg", 
+    "/p6.jpg", "/p7.jpg", "/p8.jpg", "/p9.jpg", "/p10.jpg",
+    "/p11.jpg", "/p12.jpg", "/p13.jpg",
   ];
   const [i, setI] = useState(0);
+  const [exiting, setExiting] = useState(false);
 
   useEffect(() => {
     const timer = setInterval(() => {
       setI((prev) => {
         if (prev >= imgs.length - 1) {
           clearInterval(timer);
-          setTimeout(onDone, 500); // fade out then done
+          setExiting(true);
+          setTimeout(onDone, 800);
           return prev;
         }
         return prev + 1;
       });
-    }, 2000); // 2 seconds per image
+    }, 1500); // 1.5 seconds per image
     return () => clearInterval(timer);
   }, [imgs.length, onDone]);
 
+  const skip = () => {
+    setExiting(true);
+    setTimeout(onDone, 500);
+  };
+
   return (
     <div
+      onClick={skip}
       style={{
         position: "fixed",
         inset: 0,
-        background: "#1a0e05",
+        background: "#0a0604",
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
         justifyContent: "center",
         zIndex: 9999,
-        animation: i >= imgs.length - 1 ? "fadeOut 0.5s ease-out 2s forwards" : "none",
+        cursor: "pointer",
+        opacity: exiting ? 0 : 1,
+        transition: "opacity 0.6s ease-out",
       }}
     >
       <style>{`
-        @keyframes fadeOut {
-          to { opacity: 0; }
+        @keyframes scanLine {
+          0%, 100% { top: -2px; }
+          50% { top: 100%; }
         }
-        @keyframes fadeIn {
-          from { opacity: 0; }
-          to { opacity: 1; }
+        @keyframes fadeInImage {
+          from { opacity: 0; transform: scale(0.95); }
+          to { opacity: 1; transform: scale(1); }
         }
       `}</style>
-      <img
-        key={i}
-        src={imgs[i]}
-        alt=""
-        style={{
-          maxWidth: "90%",
-          maxHeight: "70%",
-          borderRadius: 16,
-          objectFit: "cover",
-          boxShadow: "0 10px 40px rgba(0,0,0,.7)",
-          animation: "fadeIn 0.6s ease-in",
-        }}
-      />
+      
+      <div style={{ position: "relative", maxWidth: "92%", maxHeight: "72%", overflow: "hidden", borderRadius: 18, boxShadow: "0 20px 60px rgba(0,0,0,.8)" }}>
+        <img
+          key={i}
+          src={imgs[i]}
+          alt=""
+          style={{
+            width: "100%",
+            height: "100%",
+            objectFit: "cover",
+            animation: "fadeInImage 0.7s ease-out",
+          }}
+        />
+        {/* Scanning line animation */}
+        <div
+          style={{
+            position: "absolute",
+            left: 0,
+            right: 0,
+            height: 3,
+            background: "linear-gradient(90deg, transparent, #ff9933, transparent)",
+            boxShadow: "0 0 15px #ff9933",
+            animation: "scanLine 3s ease-in-out infinite",
+          }}
+        />
+      </div>
+
       <div
         style={{
           color: "#ff9933",
-          fontSize: 20,
+          fontSize: 21,
           fontWeight: 700,
-          marginTop: 24,
+          marginTop: 26,
           textAlign: "center",
-          padding: "0 20px",
+          padding: "0 24px",
         }}
       >
         All Glories to Srila Prabhupada
       </div>
-      <div style={{ marginTop: 16, display: "flex", gap: 10 }}>
+
+      <div style={{ marginTop: 18, display: "flex", gap: 8 }}>
         {imgs.map((_, k) => (
           <span
             key={k}
             style={{
-              width: 10,
-              height: 10,
-              borderRadius: "50%",
+              width: k === i ? 24 : 8,
+              height: 8,
+              borderRadius: 4,
               background: k === i ? "#ff9933" : "rgba(255,255,255,.25)",
-              transition: "background 0.3s",
+              transition: "all 0.3s",
             }}
           />
         ))}
+      </div>
+
+      <div style={{ color: "rgba(255,255,255,.5)", fontSize: 14, marginTop: 24, opacity: 0.7 }}>
+        Tap anywhere to skip →
       </div>
     </div>
   );
@@ -177,28 +206,29 @@ function Login() {
       }}
     >
       <img
-        src="/prabhupada4.jpg"
+        src="/p13.jpg"
         alt=""
-        style={{ width: 130, height: 130, borderRadius: "50%", objectFit: "cover" }}
+        style={{ width: 140, height: 140, borderRadius: "50%", objectFit: "cover", border: "3px solid #ff9933" }}
       />
-      <h1 style={{ color: "#ff9933", marginTop: 22, fontSize: 26, textAlign: "center" }}>
+      <h1 style={{ color: "#ff9933", marginTop: 22, fontSize: 28, textAlign: "center" }}>
         Sadhna OS
       </h1>
-      <p style={{ color: "#bbb", marginTop: 6, textAlign: "center" }}>
+      <p style={{ color: "#bbb", marginTop: 8, textAlign: "center", fontSize: 15 }}>
         All Glories to Srila Prabhupada
       </p>
       <button
         onClick={go}
         style={{
-          marginTop: 30,
+          marginTop: 34,
           background: "#fff",
           color: "#333",
           border: "none",
-          padding: "13px 26px",
-          borderRadius: 10,
-          fontSize: 16,
-          fontWeight: 600,
+          padding: "15px 32px",
+          borderRadius: 12,
+          fontSize: 17,
+          fontWeight: 700,
           cursor: "pointer",
+          boxShadow: "0 4px 12px rgba(0,0,0,.3)",
         }}
       >
         Sign in with Google
@@ -566,7 +596,7 @@ export default function App() {
               onClick={(e) => e.stopPropagation()}
               style={{ background: "#1a0e05", border: `2px solid ${accent}`, borderRadius: 16, padding: 28, maxWidth: 360, width: "100%", textAlign: "center" }}
             >
-              <img src="/prabhupada4.jpg" alt="" style={{ width: 100, height: 100, borderRadius: "50%", objectFit: "cover" }} />
+              <img src="/p13.jpg" alt="" style={{ width: 100, height: 100, borderRadius: "50%", objectFit: "cover" }} />
               <div style={{ color: accent, fontWeight: 700, marginTop: 12, fontSize: 16 }}>
                 All Glories to Srila Prabhupada
               </div>
@@ -693,6 +723,11 @@ export default function App() {
       }
     };
 
+    const shareNote = (note) => {
+      const msg = `${note.title ? note.title + "\n\n" : ""}${note.body}\n\n— Sadhna OS`;
+      window.open("https://wa.me/?text=" + encodeURIComponent(msg), "_blank");
+    };
+
     return (
       <div>
         <div style={S.card}>
@@ -734,15 +769,21 @@ export default function App() {
             {notes.map(note => (
               <div key={note.id} style={{ ...S.row, flexDirection: "column", alignItems: "flex-start", padding: "14px 0" }}>
                 {note.title && <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 4 }}>{note.title}</div>}
-                <div style={{ color: C.sub, fontSize: 14, marginBottom: 8, whiteSpace: "pre-wrap" }}>
-                  {note.body.length > 100 ? note.body.slice(0, 100) + "..." : note.body}
+                <div style={{ color: C.sub, fontSize: 14, marginBottom: 10, whiteSpace: "pre-wrap" }}>
+                  {note.body.length > 120 ? note.body.slice(0, 120) + "..." : note.body}
                 </div>
-                <div style={{ display: "flex", gap: 12 }}>
+                <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
                   <button
                     onClick={() => { setEditing(note); setTitle(note.title); setBody(note.body); }}
                     style={{ background: "none", border: "none", color: accent, cursor: "pointer", fontSize: 13, fontWeight: 600 }}
                   >
                     {lang === "hi" ? "संपादित करें" : "Edit"}
+                  </button>
+                  <button
+                    onClick={() => shareNote(note)}
+                    style={{ background: "none", border: "none", color: "#25D366", cursor: "pointer", fontSize: 13, fontWeight: 600 }}
+                  >
+                    {lang === "hi" ? "शेयर" : "Share"} 📤
                   </button>
                   <button
                     onClick={() => deleteNote(note.id)}
