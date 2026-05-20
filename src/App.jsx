@@ -61,22 +61,76 @@ const T = {
 };
 const tr = (k, lang) => (T[k] ? T[k][lang] : k);
 
+/* Quote + Photo pairs */
+const QUOTES = [
+  {
+    text: "So far as controlling 'kama' or lust, best thing is don't eat any highly spiced food stuffs and always think of Krishna. Chant regularly.",
+    ref: "Letter to Niranjana - Calcutta 27 May, 1971",
+    img: "/prabhupada1.jpg"
+  },
+  {
+    text: "If you think of Krishna twenty-four hours, Krishna will think of you twenty-six hours. (laughter) Krishna is so kind. If you do some service for Krishna, Krishna will reward you hundred times.",
+    ref: "Srila Prabhupada Lecture SB 01.14.44 - New York",
+    img: "/prabhupada2.jpg"
+  },
+  {
+    text: "The disciple's duty is to be ready always to serve the spiritual master, at any cost.",
+    ref: "Los Angeles, June 23, 1972",
+    img: "/prabhupada3.jpg"
+  },
+  {
+    text: "Hold my hand and I promise to take you back to Krishna!",
+    ref: "Srila Prabhupada",
+    img: "/prabhupada4.jpg"
+  },
+  {
+    text: "Even after trying our best, if we fail, Krishna will help us. Just like a child tries his best, but he falls down. The mother takes up and 'All right, come on. Walk' Like that!",
+    ref: "Morning Walk March 23, 1968",
+    img: "/prabhupada1.jpg"
+  },
+  {
+    text: "Without attentive hearing our Japa will become mechanical and tasteless. Chant your Japa with utmost attention.",
+    ref: "Srila Prabhupada",
+    img: "/prabhupada2.jpg"
+  },
+  {
+    text: "But work hard here. Not that eating, sleeping. No. That cannot be done. They must be engaged twenty-four hours. That is wanted. It is not a lazy free hotel. Anyone who lives here, must be engaged twenty-four hours.",
+    ref: "REF: Room Conversation - September 5, 1976, Vrindavana",
+    img: "/prabhupada3.jpg"
+  },
+  {
+    text: "Obedience is the first discipline. If you do not obey the representative, authority, then there cannot be any discipline. Then everything will be topsy-turvy.",
+    ref: "REF: Room Conversation - Vrindavana, March 16, 1974",
+    img: "/prabhupada4.jpg"
+  },
+  {
+    text: "The best devotee sees, 'Everyone is better than me'. Just like Caitanya-caritamrta's author, Krsnadasa Kaviraja says: jagāi mādhāi haite muñi se pāpistha purisera kita haite muni se laghista",
+    ref: "Srila Prabhupada",
+    img: "/prabhupada1.jpg"
+  },
+  {
+    text: "Let us all obey the Supreme Lord, whose hand is in everything, without exception.",
+    ref: "Ref: Srimad Bhagavatam 2.10.51 Purport",
+    img: "/prabhupada2.jpg"
+  },
+  {
+    text: "The argument that 'We do not see Krsna personally. How we can satisfy Him?'... You satisfy your spiritual master, then Krsna is pleased. Yasya prasādād bhagavat-prasādo yasyāprasādāt...",
+    ref: "REF: SB.1.5.23 — Vrindavana, August 4, 1974",
+    img: "/prabhupada3.jpg"
+  },
+];
+
 /* ──────────────────────────────────────────────
-   Splash - 13 images, tap to skip, line animation
+   Splash - Quote Cards with Circular Photo
 ─────────────────────────────────────────────── */
 function SplashScreen({ onDone }) {
-  const imgs = [
-    "/p1.jpg", "/p2.jpg", "/p3.jpg", "/p4.jpg", "/p5.jpg", 
-    "/p6.jpg", "/p7.jpg", "/p8.jpg", "/p9.jpg", "/p10.jpg",
-    "/p11.jpg", "/p12.jpg", "/p13.jpg",
-  ];
   const [i, setI] = useState(0);
   const [exiting, setExiting] = useState(false);
 
   useEffect(() => {
     const timer = setInterval(() => {
       setI((prev) => {
-        if (prev >= imgs.length - 1) {
+        if (prev >= QUOTES.length - 1) {
           clearInterval(timer);
           setExiting(true);
           setTimeout(onDone, 800);
@@ -84,14 +138,16 @@ function SplashScreen({ onDone }) {
         }
         return prev + 1;
       });
-    }, 1500); // 1.5 seconds per image
+    }, 3000); // 3 seconds per quote
     return () => clearInterval(timer);
-  }, [imgs.length, onDone]);
+  }, [onDone]);
 
   const skip = () => {
     setExiting(true);
     setTimeout(onDone, 500);
   };
+
+  const quote = QUOTES[i];
 
   return (
     <div
@@ -99,84 +155,106 @@ function SplashScreen({ onDone }) {
       style={{
         position: "fixed",
         inset: 0,
-        background: "#0a0604",
+        background: "linear-gradient(135deg, #1a0e05 0%, #2d1810 100%)",
         display: "flex",
         flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
+        alignItems: "flex-start",
+        justifyContent: "space-between",
         zIndex: 9999,
         cursor: "pointer",
         opacity: exiting ? 0 : 1,
         transition: "opacity 0.6s ease-out",
+        padding: "40px 24px",
       }}
     >
       <style>{`
-        @keyframes scanLine {
-          0%, 100% { top: -2px; }
-          50% { top: 100%; }
+        @keyframes fadeInQuote {
+          from { opacity: 0; transform: translateY(20px); }
+          to { opacity: 1; transform: translateY(0); }
         }
-        @keyframes fadeInImage {
-          from { opacity: 0; transform: scale(0.95); }
-          to { opacity: 1; transform: scale(1); }
+        @keyframes pulsePhoto {
+          0%, 100% { transform: scale(1); box-shadow: 0 0 20px rgba(255,153,51,0.3); }
+          50% { transform: scale(1.05); box-shadow: 0 0 30px rgba(255,153,51,0.5); }
         }
       `}</style>
-      
-      <div style={{ position: "relative", maxWidth: "92%", maxHeight: "72%", overflow: "hidden", borderRadius: 18, boxShadow: "0 20px 60px rgba(0,0,0,.8)" }}>
+
+      {/* Circular Photo - Top Right */}
+      <div style={{ alignSelf: "flex-end" }}>
         <img
           key={i}
-          src={imgs[i]}
+          src={quote.img}
           alt=""
           style={{
-            width: "100%",
-            height: "100%",
+            width: 120,
+            height: 120,
+            borderRadius: "50%",
             objectFit: "cover",
-            animation: "fadeInImage 0.7s ease-out",
-          }}
-        />
-        {/* Scanning line animation */}
-        <div
-          style={{
-            position: "absolute",
-            left: 0,
-            right: 0,
-            height: 3,
-            background: "linear-gradient(90deg, transparent, #ff9933, transparent)",
-            boxShadow: "0 0 15px #ff9933",
-            animation: "scanLine 3s ease-in-out infinite",
+            border: "4px solid #ff9933",
+            animation: "pulsePhoto 3s ease-in-out infinite",
           }}
         />
       </div>
 
+      {/* Quote Text - Bottom Left */}
       <div
+        key={i}
         style={{
-          color: "#ff9933",
-          fontSize: 21,
-          fontWeight: 700,
-          marginTop: 26,
-          textAlign: "center",
-          padding: "0 24px",
+          animation: "fadeInQuote 0.8s ease-out",
+          maxWidth: "90%",
         }}
       >
-        All Glories to Srila Prabhupada
+        <div
+          style={{
+            color: "#f5e6d3",
+            fontSize: 19,
+            lineHeight: 1.6,
+            fontWeight: 500,
+            marginBottom: 16,
+            fontStyle: "italic",
+          }}
+        >
+          "{quote.text}"
+        </div>
+        <div
+          style={{
+            color: "#ff9933",
+            fontSize: 13,
+            fontWeight: 600,
+          }}
+        >
+          — {quote.ref}
+        </div>
       </div>
 
-      <div style={{ marginTop: 18, display: "flex", gap: 8 }}>
-        {imgs.map((_, k) => (
-          <span
-            key={k}
-            style={{
-              width: k === i ? 24 : 8,
-              height: 8,
-              borderRadius: 4,
-              background: k === i ? "#ff9933" : "rgba(255,255,255,.25)",
-              transition: "all 0.3s",
-            }}
-          />
-        ))}
-      </div>
-
-      <div style={{ color: "rgba(255,255,255,.5)", fontSize: 14, marginTop: 24, opacity: 0.7 }}>
-        Tap anywhere to skip →
+      {/* Progress Dots + Title */}
+      <div style={{ alignSelf: "center", textAlign: "center" }}>
+        <div
+          style={{
+            color: "#ff9933",
+            fontSize: 16,
+            fontWeight: 700,
+            marginBottom: 14,
+          }}
+        >
+          All Glories to Srila Prabhupada
+        </div>
+        <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
+          {QUOTES.map((_, k) => (
+            <span
+              key={k}
+              style={{
+                width: k === i ? 24 : 8,
+                height: 8,
+                borderRadius: 4,
+                background: k === i ? "#ff9933" : "rgba(255,255,255,.2)",
+                transition: "all 0.3s",
+              }}
+            />
+          ))}
+        </div>
+        <div style={{ color: "rgba(255,255,255,.4)", fontSize: 12, marginTop: 14 }}>
+          Tap to skip →
+        </div>
       </div>
     </div>
   );
@@ -206,11 +284,11 @@ function Login() {
       }}
     >
       <img
-        src="/p13.jpg"
+        src="/prabhupada4.jpg"
         alt=""
         style={{ width: 140, height: 140, borderRadius: "50%", objectFit: "cover", border: "3px solid #ff9933" }}
       />
-      <h1 style={{ color: "#ff9933", marginTop: 22, fontSize: 28, textAlign: "center" }}>
+      <h1 style={{ color: "#ff9933", marginTop: 24, fontSize: 28, textAlign: "center" }}>
         Sadhna OS
       </h1>
       <p style={{ color: "#bbb", marginTop: 8, textAlign: "center", fontSize: 15 }}>
@@ -219,16 +297,16 @@ function Login() {
       <button
         onClick={go}
         style={{
-          marginTop: 34,
+          marginTop: 36,
           background: "#fff",
           color: "#333",
           border: "none",
-          padding: "15px 32px",
+          padding: "16px 34px",
           borderRadius: 12,
           fontSize: 17,
           fontWeight: 700,
           cursor: "pointer",
-          boxShadow: "0 4px 12px rgba(0,0,0,.3)",
+          boxShadow: "0 4px 14px rgba(0,0,0,.35)",
         }}
       >
         Sign in with Google
@@ -301,15 +379,15 @@ export default function App() {
   const accent = "#ff9933";
 
   const S = {
-    page: { background: C.bg, minHeight: "100vh", color: C.text, fontFamily: "system-ui, sans-serif", paddingBottom: 100, touchAction: "pan-x pan-y" },
+    page: { background: C.bg, minHeight: "100vh", color: C.text, fontFamily: "system-ui, sans-serif", paddingBottom: 105, touchAction: "pan-x pan-y" },
     head: { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px", borderBottom: `1px solid ${C.line}`, position: "sticky", top: 0, background: C.bg, zIndex: 5 },
     card: { background: C.card, borderRadius: 14, padding: 16, margin: "12px 16px", border: `1px solid ${C.line}` },
     row: { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 0", borderBottom: `1px solid ${C.line}` },
     btn: { background: accent, color: "#1a0e05", border: "none", padding: "15px 20px", borderRadius: 10, fontSize: 16, fontWeight: 700, cursor: "pointer", width: "100%" },
     chk: (on) => ({ width: 30, height: 30, borderRadius: 8, border: `2px solid ${on ? accent : C.sub}`, background: on ? accent : "transparent", color: "#1a0e05", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", fontWeight: 800, fontSize: 18 }),
     input: { background: C.bg, color: C.text, border: `1px solid ${C.line}`, borderRadius: 8, padding: "10px 12px", fontSize: 15, width: "100%" },
-    tabs: { position: "fixed", bottom: 0, left: 0, right: 0, display: "flex", background: C.card, borderTop: `1px solid ${C.line}`, paddingTop: 10, paddingBottom: 10 },
-    tab: (a) => ({ flex: 1, textAlign: "center", padding: "16px 0", fontSize: 17, fontWeight: a ? 700 : 500, color: a ? accent : C.sub, cursor: "pointer" }),
+    tabs: { position: "fixed", bottom: 0, left: 0, right: 0, display: "flex", background: C.card, borderTop: `1px solid ${C.line}`, paddingTop: 12, paddingBottom: 12, gap: 6 },
+    tab: (a) => ({ flex: 1, textAlign: "center", padding: "13px 4px", fontSize: 15, fontWeight: a ? 700 : 500, color: a ? accent : C.sub, cursor: "pointer", borderRadius: 8 }),
   };
 
   if (splash) return <SplashScreen onDone={() => setSplash(false)} />;
@@ -331,10 +409,10 @@ export default function App() {
         </div>
       </div>
       <div style={{ display: "flex", gap: 8 }}>
-        <button onClick={() => setLang(lang === "hi" ? "en" : "hi")} style={{ ...S.input, cursor: "pointer", width: "auto", padding: "8px 14px" }}>
+        <button onClick={() => setLang(lang === "hi" ? "en" : "hi")} style={{ ...S.input, cursor: "pointer", width: "auto", padding: "8px 14px", fontSize: 14 }}>
           {lang === "hi" ? "EN" : "हिं"}
         </button>
-        <button onClick={() => setDark(!dark)} style={{ ...S.input, cursor: "pointer", width: "auto", padding: "8px 14px" }}>
+        <button onClick={() => setDark(!dark)} style={{ ...S.input, cursor: "pointer", width: "auto", padding: "8px 14px", fontSize: 14 }}>
           {dark ? "☀" : "🌙"}
         </button>
       </div>
@@ -534,7 +612,6 @@ export default function App() {
   function ReportScreen() {
     const [showCard, setShowCard] = useState(false);
 
-    // WhatsApp message - NEW FORMAT (no name, no glories, show times)
     let msg = `${prettyDate(today)}\n\n`;
     FIXED.forEach(f => {
       if (f.type === "bool" && dayLog[f.id]) {
@@ -596,7 +673,7 @@ export default function App() {
               onClick={(e) => e.stopPropagation()}
               style={{ background: "#1a0e05", border: `2px solid ${accent}`, borderRadius: 16, padding: 28, maxWidth: 360, width: "100%", textAlign: "center" }}
             >
-              <img src="/p13.jpg" alt="" style={{ width: 100, height: 100, borderRadius: "50%", objectFit: "cover" }} />
+              <img src="/prabhupada4.jpg" alt="" style={{ width: 100, height: 100, borderRadius: "50%", objectFit: "cover" }} />
               <div style={{ color: accent, fontWeight: 700, marginTop: 12, fontSize: 16 }}>
                 All Glories to Srila Prabhupada
               </div>
@@ -724,7 +801,7 @@ export default function App() {
     };
 
     const shareNote = (note) => {
-      const msg = `${note.title ? note.title + "\n\n" : ""}${note.body}\n\n— Sadhna OS`;
+      const msg = `${note.title ? note.title + "\n\n" : ""}${note.body}`;
       window.open("https://wa.me/?text=" + encodeURIComponent(msg), "_blank");
     };
 
