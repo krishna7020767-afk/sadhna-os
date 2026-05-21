@@ -35,7 +35,6 @@ const FIXED = [
   { id: "chanting16", en: "Chanting — 16 rounds", hi: "जप — 16 माला", type: "bool" },
   { id: "chantingFinishTime", en: "Chanting finished at", hi: "जप समाप्त समय", type: "time" },
   { id: "reading2hr", en: "Reading — 2 hours", hi: "पठन — 2 घंटे", type: "bool" },
-  { id: "readingDuration", en: "Reading duration (min)", hi: "पठन अवधि (मिनट)", type: "number", show: (log) => log.reading2hr },
   { id: "hearingSB", en: "SB class heard", hi: "भागवतम् क्लास सुनी", type: "bool" },
   { id: "hearingExtra", en: "Extra lecture heard", hi: "अतिरिक्त प्रवचन सुना", type: "bool" },
   { id: "hearingExtraDuration", en: "Extra lecture duration (min)", hi: "अतिरिक्त प्रवचन अवधि (मिनट)", type: "number", show: (log) => log.hearingExtra },
@@ -136,6 +135,33 @@ const QUOTES = [
 function SplashScreen({ onDone }) {
   const [i, setI] = useState(0);
   const [exiting, setExiting] = useState(false);
+  const [touchStart, setTouchStart] = useState(null);
+  const [touchEnd, setTouchEnd] = useState(null);
+
+  const minSwipeDistance = 50;
+
+  const onTouchStart = (e) => {
+    setTouchEnd(null);
+    setTouchStart(e.targetTouches[0].clientX);
+  };
+
+  const onTouchMove = (e) => {
+    setTouchEnd(e.targetTouches[0].clientX);
+  };
+
+  const onTouchEnd = () => {
+    if (!touchStart || !touchEnd) return;
+    const distance = touchStart - touchEnd;
+    const isLeftSwipe = distance > minSwipeDistance;
+    const isRightSwipe = distance < -minSwipeDistance;
+    
+    if (isLeftSwipe && i < QUOTES.length - 1) {
+      setI(i + 1);
+    }
+    if (isRightSwipe && i > 0) {
+      setI(i - 1);
+    }
+  };
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -161,7 +187,9 @@ function SplashScreen({ onDone }) {
 
   return (
     <div
-      onClick={skip}
+      onTouchStart={onTouchStart}
+      onTouchMove={onTouchMove}
+      onTouchEnd={onTouchEnd}
       style={{
         position: "fixed",
         inset: 0,
@@ -236,8 +264,8 @@ function SplashScreen({ onDone }) {
         </div>
       </div>
 
-      {/* Progress Dots + Title */}
-      <div style={{ alignSelf: "center", textAlign: "center" }}>
+      {/* Progress Dots + Continue Button */}
+      <div style={{ alignSelf: "center", textAlign: "center", width: "100%" }}>
         <div
           style={{
             color: "#ff9933",
@@ -262,9 +290,25 @@ function SplashScreen({ onDone }) {
             />
           ))}
         </div>
-        <div style={{ color: "rgba(255,255,255,.4)", fontSize: 12, marginTop: 14 }}>
-          Tap to skip →
+        <div style={{ color: "rgba(255,255,255,.4)", fontSize: 12, marginTop: 14, marginBottom: 16 }}>
+          👈 Swipe to browse quotes 👉
         </div>
+        <button
+          onClick={skip}
+          style={{
+            background: "#ff9933",
+            color: "#1a0e05",
+            border: "none",
+            padding: "14px 32px",
+            borderRadius: 10,
+            fontSize: 16,
+            fontWeight: 700,
+            cursor: "pointer",
+            boxShadow: "0 4px 14px rgba(0,0,0,.35)",
+          }}
+        >
+          Continue to App →
+        </button>
       </div>
     </div>
   );
@@ -332,10 +376,10 @@ export default function App() {
   const [splash, setSplash] = useState(true);
   const [user, setUser] = useState(null);
   const [authReady, setAuthReady] = useState(false);
-  const [lang, setLang] = useState("hi");
+  const [lang, setLang] = useState("en");
   const [dark, setDark] = useState(true);
   const [screen, setScreen] = useState("home");
-  const [data, setData] = useState({ log: {}, custom: {}, notes: [] });
+  const [data, setData] = useState({ log: {}, custom: {}, notes: [], settings: {} });
 
   const today = dateKey();
 
@@ -352,10 +396,50 @@ export default function App() {
     if (!user) return;
     const ref = doc(db, "users", user.uid);
     const un = onSnapshot(ref, (snap) => {
-      if (snap.exists()) setData({ log: {}, custom: {}, notes: [], ...snap.data() });
+      if (snap.exists()) setData({ log: {}, custom: {}, notes: [], settings: {}, ...snap.data() });
     });
     return un;
   }, [user]);
+
+  // Check for scheduled WhatsApp report
+  useEffect(() => {
+    if (!user || !data.settings?.autoSendEnabled) return;
+    
+    const checkScheduledReport = () => {
+      const now = new Date();
+      const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+      const scheduledTime = data.settings.autoSendTime || "20:00";
+      const lastSent = localStorage.getItem('lastReportSent');
+      
+      if (currentTime >= scheduledTime && lastSent !== today) {
+        const dayLog = data.log?.[today] || {};
+        const customToday = data.custom?.[today] || [];
+        
+        let msg = `Hare Krishna Prabhu 🙏\nDandwat Pranam\n\nSadhna Report - ${prettyDate(today)}\n\n`;
+        FIXED.forEach(f => {
+          if (f.type === "bool" && dayLog[f.id]) msg += `✅ ${f.en}\n`;
+          else if (f.type === "time" && dayLog[f.id]) msg += `✅ ${f.en}: ${dayLog[f.id]}\n`;
+          else if (f.type === "number" && dayLog[f.id]) msg += `   └ Duration: ${dayLog[f.id]} min\n`;
+        });
+        customToday.forEach(c => {
+          if (c.done) msg += `✅ ${c.label}\n`;
+        });
+
+        const sendNow = window.confirm(
+          lang === "hi" 
+            ? "समय हो गया है! क्या आप अपनी साधना रिपोर्ट WhatsApp पर भेजना चाहते हैं?" 
+            : "It's time! Would you like to send your Sadhna report on WhatsApp?"
+        );
+        
+        if (sendNow) {
+          localStorage.setItem('lastReportSent', today);
+          window.open("https://wa.me/?text=" + encodeURIComponent(msg), "_blank");
+        }
+      }
+    };
+    
+    checkScheduledReport();
+  }, [user, data, today, lang]);
 
   const save = async (patch) => {
     if (!user) return;
@@ -460,6 +544,8 @@ export default function App() {
                 type="time"
                 value={dayLog[f.id] || ""}
                 onChange={(e) => setField(f.id, e.target.value)}
+                onClick={(e) => e.stopPropagation()}
+                onFocus={(e) => e.stopPropagation()}
                 style={{ ...S.input, width: "auto", padding: "8px 12px" }}
               />
             ) : (
@@ -603,18 +689,6 @@ export default function App() {
             {lang === "hi" ? "रीसेट" : "Reset"}
           </button>
         </div>
-        {mode === "reading" && (
-          <button
-            style={{ ...S.btn, marginTop: 14, background: "#5cb85c", color: "#fff" }}
-            onClick={() => {
-              setField("reading2hr", true);
-              setField("readingDuration", Math.floor(readingTimer.sec / 60));
-              alert(lang === "hi" ? "पठन पूर्ण के रूप में चिह्नित" : "Reading marked done");
-            }}
-          >
-            {lang === "hi" ? "पठन पूर्ण चिह्नित करें" : "Mark reading done"}
-          </button>
-        )}
       </div>
     );
   }
@@ -622,7 +696,7 @@ export default function App() {
   function ReportScreen() {
     const [showCard, setShowCard] = useState(false);
 
-    let msg = `${prettyDate(today)}\n\n`;
+    let msg = `Hare Krishna Prabhu 🙏\nDandwat Pranam\n\nSadhna Report - ${prettyDate(today)}\n\n`;
     FIXED.forEach(f => {
       if (f.type === "bool" && dayLog[f.id]) {
         msg += `✅ ${f.en}\n`;
@@ -921,6 +995,45 @@ export default function App() {
               </div>
             ))}
           </div>
+        </div>
+        <div style={S.card}>
+          <div style={{ fontWeight: 700, marginBottom: 14, fontSize: 16 }}>
+            {lang === "hi" ? "सेटिंग्स" : "Settings"}
+          </div>
+          <div style={{ fontSize: 14, color: C.sub, marginBottom: 16 }}>
+            {lang === "hi" ? "स्वचालित WhatsApp रिपोर्ट" : "Auto WhatsApp Report"}
+          </div>
+          
+          <div style={S.row}>
+            <span>{lang === "hi" ? "ऑटो-रिपोर्ट सक्षम करें" : "Enable auto-report"}</span>
+            <div
+              style={S.chk(!!data.settings?.autoSendEnabled)}
+              onClick={() => save({ settings: { ...data.settings, autoSendEnabled: !data.settings?.autoSendEnabled } })}
+            >
+              {data.settings?.autoSendEnabled ? "✓" : ""}
+            </div>
+          </div>
+
+          {data.settings?.autoSendEnabled && (
+            <>
+              <div style={{ ...S.row, borderBottom: "none" }}>
+                <span>{lang === "hi" ? "रिपोर्ट भेजने का समय" : "Report time"}</span>
+                <input
+                  type="time"
+                  value={data.settings?.autoSendTime || "20:00"}
+                  onChange={(e) => save({ settings: { ...data.settings, autoSendTime: e.target.value } })}
+                  onClick={(e) => e.stopPropagation()}
+                  onFocus={(e) => e.stopPropagation()}
+                  style={{ ...S.input, width: "auto", padding: "8px 12px" }}
+                />
+              </div>
+              <div style={{ fontSize: 13, color: C.sub, marginTop: 8, marginBottom: 12 }}>
+                {lang === "hi" 
+                  ? "इस समय पर ऐप खोलने पर WhatsApp रिपोर्ट का विकल्प मिलेगा" 
+                  : "Opening the app at this time will prompt you to send your WhatsApp report"}
+              </div>
+            </>
+          )}
         </div>
         <div style={S.card}>
           <button
