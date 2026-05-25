@@ -11,8 +11,10 @@
   },
   "dependencies": {
     "firebase": "^12.13.0",
+    "quill": "^2.0.3",
     "react": "^19.2.6",
-    "react-dom": "^19.2.6"
+    "react-dom": "^19.2.6",
+    "react-quill": "^2.0.0"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

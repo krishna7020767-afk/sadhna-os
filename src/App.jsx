@@ -28,14 +28,15 @@ function prettyDate(key) {
   });
 }
 
+/* Permanent / fixed sadhna items - REMOVED reading2hr */
 /* Permanent / fixed sadhna items */
 const FIXED = [
   { id: "mangalAarti", en: "Mangal Aarti", hi: "मंगल आरती", type: "time" },
   { id: "wakeTime", en: "Wake-up / Morning walk", hi: "उठने / मॉर्निंग वॉक", type: "time" },
   { id: "chanting16", en: "Chanting — 16 rounds", hi: "जप — 16 माला", type: "bool" },
   { id: "chantingFinishTime", en: "Chanting finished at", hi: "जप समाप्त समय", type: "time" },
-  { id: "reading2hr", en: "Reading — 2 hours", hi: "पठन — 2 घंटे", type: "bool" },
-  { id: "hearingSB", en: "SB class heard", hi: "भागवतम् क्लास सुनी", type: "bool" },
+  { id: "reading", en: "Reading (minutes)", hi: "पठन (मिनट)", type: "number" },
+ { id: "hearingSB", en: "SB class heard", hi: "भागवतम् क्लास सुनी", type: "bool" },
   { id: "hearingExtra", en: "Extra lecture heard", hi: "अतिरिक्त प्रवचन सुना", type: "bool" },
   { id: "hearingExtraDuration", en: "Extra lecture duration (min)", hi: "अतिरिक्त प्रवचन अवधि (मिनट)", type: "number", show: (log) => log.hearingExtra },
   { id: "exercise", en: "Exercise", hi: "व्यायाम", type: "bool" },
@@ -174,7 +175,7 @@ function SplashScreen({ onDone }) {
         }
         return prev + 1;
       });
-    }, 3000); // 3 seconds per quote
+    }, 3000);
     return () => clearInterval(timer);
   }, [onDone]);
 
@@ -216,7 +217,6 @@ function SplashScreen({ onDone }) {
         }
       `}</style>
 
-      {/* Circular Photo - Top Right */}
       <div style={{ alignSelf: "flex-end" }}>
         <img
           key={i}
@@ -233,7 +233,6 @@ function SplashScreen({ onDone }) {
         />
       </div>
 
-      {/* Quote Text - Bottom Left */}
       <div
         key={i}
         style={{
@@ -264,7 +263,6 @@ function SplashScreen({ onDone }) {
         </div>
       </div>
 
-      {/* Progress Dots + Continue Button */}
       <div style={{ alignSelf: "center", textAlign: "center", width: "100%" }}>
         <div
           style={{
@@ -543,19 +541,30 @@ export default function App() {
               <input
                 type="time"
                 value={dayLog[f.id] || ""}
-                onChange={(e) => setField(f.id, e.target.value)}
-                onClick={(e) => e.stopPropagation()}
+                onChange={(e) => {
+                  e.stopPropagation();
+                  setField(f.id, e.target.value);
+                }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  e.target.showPicker?.();
+                }}
                 onFocus={(e) => e.stopPropagation()}
                 style={{ ...S.input, width: "auto", padding: "8px 12px" }}
               />
             ) : (
               <input
-                type="number"
-                value={dayLog[f.id] || ""}
-                onChange={(e) => setField(f.id, e.target.value)}
-                placeholder="0"
-                style={{ ...S.input, width: "90px", padding: "8px 12px", textAlign: "center" }}
-              />
+  type="number"
+  value={dayLog[f.id] || ""}
+  onChange={(e) => {
+    e.stopPropagation();
+    setField(f.id, e.target.value);
+  }}
+  onClick={(e) => e.stopPropagation()}
+  onFocus={(e) => e.stopPropagation()}
+  placeholder="0"
+  style={{ ...S.input, width: "90px", padding: "8px 12px", textAlign: "center" }}
+/>
             )}
           </div>
         ))}
@@ -620,34 +629,64 @@ export default function App() {
 
   function TimerScreen() {
     const [mode, setMode] = useState("reading");
+    const [readingGoal, setReadingGoal] = useState(120); // minutes
     const [readingTimer, setReadingTimer] = useState({ sec: 0, run: false });
     const [chantingTimer, setChantingTimer] = useState({ sec: 0, run: false });
     const readingRef = useRef();
     const chantingRef = useRef();
 
+    // Background timer support
     useEffect(() => {
       if (readingTimer.run) {
-        readingRef.current = setInterval(() => setReadingTimer(t => ({ ...t, sec: t.sec + 1 })), 1000);
+        const startTime = Date.now() - readingTimer.sec * 1000;
+        localStorage.setItem('readingStart', startTime);
+        readingRef.current = setInterval(() => {
+          const elapsed = Math.floor((Date.now() - startTime) / 1000);
+          setReadingTimer(t => ({ ...t, sec: elapsed }));
+        }, 1000);
       } else {
         clearInterval(readingRef.current);
+        localStorage.removeItem('readingStart');
       }
       return () => clearInterval(readingRef.current);
     }, [readingTimer.run]);
 
     useEffect(() => {
       if (chantingTimer.run) {
-        chantingRef.current = setInterval(() => setChantingTimer(t => ({ ...t, sec: t.sec + 1 })), 1000);
+        const startTime = Date.now() - chantingTimer.sec * 1000;
+        localStorage.setItem('chantingStart', startTime);
+        chantingRef.current = setInterval(() => {
+          const elapsed = Math.floor((Date.now() - startTime) / 1000);
+          setChantingTimer(t => ({ ...t, sec: elapsed }));
+        }, 1000);
       } else {
         clearInterval(chantingRef.current);
+        localStorage.removeItem('chantingStart');
       }
       return () => clearInterval(chantingRef.current);
     }, [chantingTimer.run]);
+
+    // Restore timers on mount
+    useEffect(() => {
+      const readStart = localStorage.getItem('readingStart');
+      if (readStart) {
+        const elapsed = Math.floor((Date.now() - parseInt(readStart)) / 1000);
+        setReadingTimer({ sec: elapsed, run: true });
+      }
+      const chantStart = localStorage.getItem('chantingStart');
+      if (chantStart) {
+        const elapsed = Math.floor((Date.now() - parseInt(chantStart)) / 1000);
+        setChantingTimer({ sec: elapsed, run: true });
+      }
+    }, []);
 
     const current = mode === "reading" ? readingTimer : chantingTimer;
     const setCurrent = mode === "reading" ? setReadingTimer : setChantingTimer;
 
     const mm = String(Math.floor(current.sec / 60)).padStart(2, "0");
     const ss = String(current.sec % 60).padStart(2, "0");
+
+    const progressPct = mode === "reading" ? Math.min(100, (current.sec / (readingGoal * 60)) * 100) : 0;
 
     return (
       <div style={S.card}>
@@ -667,11 +706,30 @@ export default function App() {
               }}
             >
               {m === "reading"
-                ? lang === "hi" ? "पठन (निजी)" : "Reading (personal)"
-                : lang === "hi" ? "जप / श्रवण" : "Chanting / Hearing"}
+                ? lang === "hi" ? "पठन" : "Reading"
+                : lang === "hi" ? "जप / श्रवण" : "Chanting"}
             </button>
           ))}
         </div>
+
+        {mode === "reading" && (
+          <div style={{ marginBottom: 16 }}>
+            <label style={{ fontSize: 14, color: C.sub, display: "block", marginBottom: 8 }}>
+              {lang === "hi" ? "लक्ष्य (मिनट)" : "Goal (minutes)"}
+            </label>
+            <input
+              type="number"
+              value={readingGoal}
+              onChange={(e) => setReadingGoal(Math.max(1, parseInt(e.target.value) || 1))}
+              style={{ ...S.input, textAlign: "center" }}
+              min="1"
+            />
+            <div style={{ marginTop: 12, height: 8, background: C.bg, borderRadius: 4, overflow: "hidden" }}>
+              <div style={{ width: progressPct + "%", height: "100%", background: accent, transition: "width 0.3s" }} />
+            </div>
+          </div>
+        )}
+
         <div style={{ textAlign: "center", fontSize: 64, fontWeight: 800, color: accent, marginBottom: 24 }}>
           {mm}:{ss}
         </div>
@@ -862,12 +920,20 @@ export default function App() {
     const [editing, setEditing] = useState(null);
     const [title, setTitle] = useState("");
     const [body, setBody] = useState("");
+    const [showEditor, setShowEditor] = useState(false);
+    const [formatting, setFormatting] = useState({ bold: false, italic: false, color: "#f3ede2", size: 15 });
 
     const notes = data.notes || [];
 
     const saveNote = () => {
       if (!title.trim() && !body.trim()) return;
-      const note = { id: Date.now(), title: title.trim(), body: body.trim(), date: Date.now() };
+      const note = { 
+        id: editing?.id || Date.now(), 
+        title: title.trim(), 
+        body: body.trim(), 
+        date: Date.now(),
+        formatting 
+      };
       if (editing) {
         save({ notes: notes.map(n => n.id === editing.id ? note : n) });
       } else {
@@ -876,6 +942,8 @@ export default function App() {
       setEditing(null);
       setTitle("");
       setBody("");
+      setShowEditor(false);
+      setFormatting({ bold: false, italic: false, color: "#f3ede2", size: 15 });
     };
 
     const deleteNote = (id) => {
@@ -889,75 +957,240 @@ export default function App() {
       window.open("https://wa.me/?text=" + encodeURIComponent(msg), "_blank");
     };
 
-    return (
-      <div>
-        <div style={S.card}>
-          <div style={{ fontWeight: 700, marginBottom: 12, fontSize: 16 }}>
-            {editing ? (lang === "hi" ? "नोट संपादित करें" : "Edit note") : (lang === "hi" ? "नया नोट" : "New note")}
-          </div>
-          <input
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder={lang === "hi" ? "शीर्षक (वैकल्पिक)" : "Title (optional)"}
-            style={{ ...S.input, marginBottom: 10, fontWeight: 600 }}
-          />
-          <textarea
-            value={body}
-            onChange={(e) => setBody(e.target.value)}
-            placeholder={lang === "hi" ? "नोट्स लिखें…" : "Write notes…"}
-            style={{ ...S.input, minHeight: 120, resize: "vertical", fontFamily: "inherit" }}
-          />
-          <div style={{ display: "flex", gap: 10, marginTop: 12 }}>
-            <button onClick={saveNote} style={S.btn}>
-              {editing ? (lang === "hi" ? "सहेजें" : "Save") : (lang === "hi" ? "जोड़ें" : "Add")}
-            </button>
-            {editing && (
-              <button
-                onClick={() => { setEditing(null); setTitle(""); setBody(""); }}
-                style={{ ...S.btn, background: C.bg, color: C.text, border: `1px solid ${C.line}` }}
-              >
-                {lang === "hi" ? "रद्द करें" : "Cancel"}
-              </button>
-            )}
-          </div>
-        </div>
+    const applyFormat = (format) => {
+      if (format === 'bold') setFormatting(f => ({ ...f, bold: !f.bold }));
+      if (format === 'italic') setFormatting(f => ({ ...f, italic: !f.italic }));
+    };
 
-        {notes.length > 0 && (
-          <div style={S.card}>
-            <div style={{ fontWeight: 700, marginBottom: 10, fontSize: 16 }}>
-              {lang === "hi" ? "मेरे नोट्स" : "My notes"}
+    return (
+      <>
+        {/* Full Page Editor Modal */}
+        {showEditor && (
+          <div style={{ 
+            position: "fixed", 
+            inset: 0, 
+            background: C.bg, 
+            zIndex: 100, 
+            display: "flex", 
+            flexDirection: "column",
+            paddingBottom: 105 
+          }}>
+            {/* Header */}
+            <div style={{ 
+              ...S.head, 
+              position: "sticky", 
+              top: 0, 
+              background: C.bg, 
+              borderBottom: `1px solid ${C.line}` 
+            }}>
+              <button 
+                onClick={() => {
+                  setShowEditor(false);
+                  setEditing(null);
+                  setTitle("");
+                  setBody("");
+                }}
+                style={{ background: "none", border: "none", color: C.text, fontSize: 18, cursor: "pointer" }}
+              >
+                ✕
+              </button>
+              <div style={{ fontWeight: 700, fontSize: 16 }}>
+                {editing ? (lang === "hi" ? "संपादित करें" : "Edit") : (lang === "hi" ? "नया नोट" : "New Note")}
+              </div>
+              <button 
+                onClick={saveNote}
+                style={{ background: accent, color: "#1a0e05", border: "none", padding: "8px 16px", borderRadius: 8, fontWeight: 700, cursor: "pointer" }}
+              >
+                {lang === "hi" ? "सहेजें" : "Save"}
+              </button>
             </div>
-            {notes.map(note => (
-              <div key={note.id} style={{ ...S.row, flexDirection: "column", alignItems: "flex-start", padding: "14px 0" }}>
-                {note.title && <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 4 }}>{note.title}</div>}
-                <div style={{ color: C.sub, fontSize: 14, marginBottom: 10, whiteSpace: "pre-wrap" }}>
-                  {note.body.length > 120 ? note.body.slice(0, 120) + "..." : note.body}
+
+            {/* Formatting Toolbar */}
+            <div style={{ 
+              padding: "12px 16px", 
+              borderBottom: `1px solid ${C.line}`,
+              display: "flex",
+              gap: 8,
+              overflowX: "auto",
+              background: C.card
+            }}>
+              <button 
+                onClick={() => applyFormat('bold')}
+                style={{ 
+                  padding: "8px 12px", 
+                  background: formatting.bold ? accent : C.bg, 
+                  color: formatting.bold ? "#1a0e05" : C.text,
+                  border: "none", 
+                  borderRadius: 6, 
+                  fontWeight: 700,
+                  cursor: "pointer" 
+                }}
+              >
+                B
+              </button>
+              <button 
+                onClick={() => applyFormat('italic')}
+                style={{ 
+                  padding: "8px 12px", 
+                  background: formatting.italic ? accent : C.bg, 
+                  color: formatting.italic ? "#1a0e05" : C.text,
+                  border: "none", 
+                  borderRadius: 6, 
+                  fontStyle: "italic",
+                  cursor: "pointer" 
+                }}
+              >
+                I
+              </button>
+              <select 
+                value={formatting.size}
+                onChange={(e) => setFormatting(f => ({ ...f, size: parseInt(e.target.value) }))}
+                style={{ ...S.input, width: "auto", padding: "6px 10px" }}
+              >
+                <option value={12}>Small</option>
+                <option value={15}>Normal</option>
+                <option value={18}>Large</option>
+                <option value={24}>XL</option>
+              </select>
+              <input 
+                type="color"
+                value={formatting.color}
+                onChange={(e) => setFormatting(f => ({ ...f, color: e.target.value }))}
+                style={{ width: 40, height: 40, border: "none", borderRadius: 6, cursor: "pointer" }}
+              />
+            </div>
+
+            {/* Editor Content */}
+            <div style={{ flex: 1, padding: 16, overflowY: "auto" }}>
+              <input
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder={lang === "hi" ? "शीर्षक" : "Title"}
+                style={{ 
+                  ...S.input, 
+                  marginBottom: 16, 
+                  fontWeight: 700,
+                  fontSize: 20,
+                  border: "none",
+                  borderBottom: `1px solid ${C.line}`,
+                  borderRadius: 0,
+                  padding: "12px 0"
+                }}
+              />
+              <textarea
+                value={body}
+                onChange={(e) => setBody(e.target.value)}
+                placeholder={lang === "hi" ? "अपने विचार लिखें…" : "Write your thoughts..."}
+                style={{ 
+                  ...S.input, 
+                  minHeight: "calc(100vh - 300px)",
+                  resize: "none", 
+                  fontFamily: "inherit",
+                  border: "none",
+                  fontWeight: formatting.bold ? 700 : 400,
+                  fontStyle: formatting.italic ? "italic" : "normal",
+                  color: formatting.color,
+                  fontSize: formatting.size
+                }}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Notes List */}
+        <div style={{ padding: "16px" }}>
+          <button
+            onClick={() => setShowEditor(true)}
+            style={{ ...S.btn, marginBottom: 16 }}
+          >
+            + {lang === "hi" ? "नया नोट" : "New Note"}
+          </button>
+
+          {notes.length === 0 ? (
+            <div style={{ textAlign: "center", color: C.sub, padding: "40px 20px", fontSize: 15 }}>
+              {lang === "hi" ? "कोई नोट्स नहीं हैं" : "No notes yet"}
+            </div>
+          ) : (
+            notes.map(note => (
+              <div 
+                key={note.id} 
+                style={{ 
+                  background: C.card, 
+                  borderRadius: 12, 
+                  padding: 16, 
+                  marginBottom: 12,
+                  border: `1px solid ${C.line}`
+                }}
+              >
+                {note.title && (
+                  <div style={{ fontWeight: 700, fontSize: 17, marginBottom: 8, color: C.text }}>
+                    {note.title}
+                  </div>
+                )}
+                <div style={{ 
+                  color: C.sub, 
+                  fontSize: 14, 
+                  marginBottom: 12, 
+                  whiteSpace: "pre-wrap",
+                  lineHeight: 1.5
+                }}>
+                  {note.body.length > 150 ? note.body.slice(0, 150) + "..." : note.body}
+                </div>
+                <div style={{ fontSize: 11, color: C.sub, marginBottom: 12 }}>
+                  {new Date(note.date).toLocaleString('en-IN')}
                 </div>
                 <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
                   <button
-                    onClick={() => { setEditing(note); setTitle(note.title); setBody(note.body); }}
-                    style={{ background: "none", border: "none", color: accent, cursor: "pointer", fontSize: 13, fontWeight: 600 }}
+                    onClick={() => { 
+                      setEditing(note); 
+                      setTitle(note.title); 
+                      setBody(note.body); 
+                      setFormatting(note.formatting || { bold: false, italic: false, color: "#f3ede2", size: 15 });
+                      setShowEditor(true);
+                    }}
+                    style={{ 
+                      background: "none", 
+                      border: "none", 
+                      color: accent, 
+                      cursor: "pointer", 
+                      fontSize: 13, 
+                      fontWeight: 600 
+                    }}
                   >
-                    {lang === "hi" ? "संपादित करें" : "Edit"}
+                    ✏️ {lang === "hi" ? "संपादित" : "Edit"}
                   </button>
                   <button
                     onClick={() => shareNote(note)}
-                    style={{ background: "none", border: "none", color: "#25D366", cursor: "pointer", fontSize: 13, fontWeight: 600 }}
+                    style={{ 
+                      background: "none", 
+                      border: "none", 
+                      color: "#25D366", 
+                      cursor: "pointer", 
+                      fontSize: 13, 
+                      fontWeight: 600 
+                    }}
                   >
-                    {lang === "hi" ? "शेयर" : "Share"} 📤
+                    📤 {lang === "hi" ? "शेयर" : "Share"}
                   </button>
                   <button
                     onClick={() => deleteNote(note.id)}
-                    style={{ background: "none", border: "none", color: "#d9534f", cursor: "pointer", fontSize: 13, fontWeight: 600 }}
+                    style={{ 
+                      background: "none", 
+                      border: "none", 
+                      color: "#d9534f", 
+                      cursor: "pointer", 
+                      fontSize: 13, 
+                      fontWeight: 600 
+                    }}
                   >
-                    {lang === "hi" ? "हटाएं" : "Delete"}
+                    🗑️ {lang === "hi" ? "हटाएं" : "Delete"}
                   </button>
                 </div>
               </div>
-            ))}
-          </div>
-        )}
-      </div>
+            ))
+          )}
+        </div>
+      </>
     );
   }
 
@@ -1021,8 +1254,14 @@ export default function App() {
                 <input
                   type="time"
                   value={data.settings?.autoSendTime || "20:00"}
-                  onChange={(e) => save({ settings: { ...data.settings, autoSendTime: e.target.value } })}
-                  onClick={(e) => e.stopPropagation()}
+                  onChange={(e) => {
+                    e.stopPropagation();
+                    save({ settings: { ...data.settings, autoSendTime: e.target.value } });
+                  }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    e.target.showPicker?.();
+                  }}
                   onFocus={(e) => e.stopPropagation()}
                   style={{ ...S.input, width: "auto", padding: "8px 12px" }}
                 />
