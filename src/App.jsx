@@ -1,16 +1,17 @@
 import { useEffect, useState, useRef } from "react";
-import { db, auth } from "./firebase";
-import { doc, onSnapshot, setDoc } from "firebase/firestore";
-import {
-  GoogleAuthProvider,
-  signInWithPopup,
-  signOut,
-  onAuthStateChanged,
-} from "firebase/auth";
+import { supabase } from "./supabaseClient";
 
 /* ──────────────────────────────────────────────
    Helpers
 ─────────────────────────────────────────────── */
+function mapUser(u) {
+  if (!u) return null;
+  return {
+    id: u.id,
+    displayName: u.user_metadata?.full_name || u.user_metadata?.name || u.email || "",
+    photoURL: u.user_metadata?.avatar_url || u.user_metadata?.picture || "",
+  };
+}
 function dateKey(d = new Date()) {
   return (
     d.getFullYear() +
@@ -318,7 +319,8 @@ function SplashScreen({ onDone }) {
 function Login() {
   const go = async () => {
     try {
-      await signInWithPopup(auth, new GoogleAuthProvider());
+      const { error } = await supabase.auth.signInWithOAuth({ provider: "google" });
+      if (error) throw error;
     } catch (e) {
       alert("Login failed: " + e.message);
     }
@@ -382,21 +384,40 @@ export default function App() {
   const today = dateKey();
 
   useEffect(() => {
-    const un = onAuthStateChanged(auth, (u) => {
-      setUser(u);
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(mapUser(session?.user));
       setAuthReady(true);
     });
-    return un;
+    return () => subscription.unsubscribe();
   }, []);
 
-  // live sync of user doc
+  // live sync of user row
   useEffect(() => {
     if (!user) return;
-    const ref = doc(db, "users", user.uid);
-    const un = onSnapshot(ref, (snap) => {
-      if (snap.exists()) setData({ log: {}, custom: {}, notes: [], settings: {}, ...snap.data() });
-    });
-    return un;
+    let channel;
+    (async () => {
+      const { data: row } = await supabase
+        .from("user_data")
+        .select("*")
+        .eq("id", user.id)
+        .maybeSingle();
+      if (row) setData({ log: {}, custom: {}, notes: [], settings: {}, ...row });
+      channel = supabase
+        .channel(`user_data_${user.id}`)
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "user_data", filter: `id=eq.${user.id}` },
+          (payload) => {
+            if (payload.new) setData({ log: {}, custom: {}, notes: [], settings: {}, ...payload.new });
+          }
+        )
+        .subscribe();
+    })();
+    return () => {
+      if (channel) supabase.removeChannel(channel);
+    };
   }, [user]);
 
   // Check for scheduled WhatsApp report
@@ -443,11 +464,12 @@ export default function App() {
     if (!user) return;
     const next = { ...data, ...patch };
     setData(next);
-    await setDoc(
-      doc(db, "users", user.uid),
-      { ...next, name: user.displayName || "", photo: user.photoURL || "" },
-      { merge: true }
-    );
+    await supabase.from("user_data").upsert({
+      id: user.id,
+      ...next,
+      name: user.displayName || "",
+      photo: user.photoURL || "",
+    });
   };
 
   const dayLog = data.log?.[today] || {};
@@ -1276,7 +1298,7 @@ export default function App() {
         </div>
         <div style={S.card}>
           <button
-            onClick={() => signOut(auth)}
+            onClick={() => supabase.auth.signOut()}
             style={{ ...S.btn, background: "#d9534f", color: "#fff" }}
           >
             {tr("logout", lang)}
