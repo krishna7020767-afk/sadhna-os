@@ -1,41 +1,18 @@
 import { useEffect, useState, useRef } from "react";
 import { supabase } from "./supabaseClient";
-
-/* ──────────────────────────────────────────────
-   Helpers
-─────────────────────────────────────────────── */
-function mapUser(u) {
-  if (!u) return null;
-  return {
-    id: u.id,
-    displayName: u.user_metadata?.full_name || u.user_metadata?.name || u.email || "",
-    photoURL: u.user_metadata?.avatar_url || u.user_metadata?.picture || "",
-  };
-}
-function dateKey(d = new Date()) {
-  return (
-    d.getFullYear() + "-" +
-    String(d.getMonth() + 1).padStart(2, "0") + "-" +
-    String(d.getDate()).padStart(2, "0")
-  );
-}
-function addDays(base, n) {
-  const d = new Date(base);
-  d.setDate(d.getDate() + n);
-  return d;
-}
-function prettyDate(key) {
-  const d = new Date(key + "T00:00:00");
-  return d.toLocaleDateString("en-IN", { day: "numeric", month: "short" });
-}
-function fmtHMS(totalSec) {
-  const s = Math.max(0, Math.floor(totalSec));
-  const h = Math.floor(s / 3600);
-  const m = Math.floor((s % 3600) / 60);
-  const ss = s % 60;
-  const p = (n) => String(n).padStart(2, "0");
-  return h > 0 ? `${p(h)}:${p(m)}:${p(ss)}` : `${p(m)}:${p(ss)}`;
-}
+import { mapUser, dateKey, addDays, prettyDate, fmtHMS } from "./lib/helpers";
+import { accent, green, danger, warn, getPalette, ThemeContext } from "./theme";
+import { Card } from "./components/Card";
+import { Button } from "./components/Button";
+import { ProgressBar } from "./components/ProgressBar";
+import { IconButton } from "./components/IconButton";
+import { Chip } from "./components/Chip";
+import { Toggle } from "./components/Toggle";
+import { StatTile } from "./components/StatTile";
+import { Section } from "./components/Section";
+import { EmptyState } from "./components/EmptyState";
+import { Toast } from "./components/Toast";
+import { ConfirmSheet } from "./components/ConfirmSheet";
 
 /* Permanent / fixed sadhna items */
 const FIXED = [
@@ -273,6 +250,25 @@ function Login() {
   );
 }
 
+/* ──────────────────────────────────────────────
+   Skeleton loading (auth check in progress)
+─────────────────────────────────────────────── */
+function SkeletonScreen({ C }) {
+  const block = { background: C.card, borderRadius: 14, margin: "12px 14px", border: `1px solid ${C.line}` };
+  return (
+    <div style={{ background: C.bg, minHeight: "100dvh", paddingTop: 20 }}>
+      <style>{`
+        .skeleton-block { animation: pulseSkeleton 1.2s ease-in-out infinite; }
+        @keyframes pulseSkeleton { 0%, 100% { opacity: .5; } 50% { opacity: 1; } }
+        @media (prefers-reduced-motion: reduce) { .skeleton-block { animation: none; } }
+      `}</style>
+      <div className="skeleton-block" style={{ ...block, height: 90 }} />
+      <div className="skeleton-block" style={{ ...block, height: 140 }} />
+      <div className="skeleton-block" style={{ ...block, height: 140 }} />
+    </div>
+  );
+}
+
 const EMPTY = { log: {}, custom: {}, notes: [], settings: {}, timers: [], goals: [], widgets: [], templates: [] };
 const DEFAULT_TIMERS = [
   { id: "japa", name: "Japa", mode: "stopwatch", duration: 0 },
@@ -312,6 +308,15 @@ export default function App() {
   const [editingHome, setEditingHome] = useState(false);
   const [data, setData] = useState(EMPTY);
   const [now, setNow] = useState(Date.now());
+  const [toast, setToast] = useState(null);
+  const toastTimer = useRef(null);
+  const showToast = (msg) => {
+    setToast(msg);
+    clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToast(null), 2200);
+  };
+  const [confirmState, setConfirmState] = useState(null); // { message, onConfirm }
+  const askConfirm = (message, onConfirm) => setConfirmState({ message, onConfirm });
 
   // running timer state (persisted to localStorage so it survives reload/close)
   const [runs, setRuns] = useState(() => {
@@ -412,11 +417,14 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, data.settings?.autoSendEnabled]);
 
-  const save = async (patch) => {
-    if (!user) return;
-    const next = { ...data, ...patch };
-    setData(next);
-    await supabase.from("user_data").upsert({
+  const pendingSaveRef = useRef(null);
+  const saveTimer = useRef(null);
+  const flushSave = () => {
+    clearTimeout(saveTimer.current);
+    const next = pendingSaveRef.current;
+    if (!next || !user) return;
+    pendingSaveRef.current = null;
+    supabase.from("user_data").upsert({
       id: user.id,
       name: user.displayName || "",
       photo: user.photoURL || "",
@@ -425,7 +433,30 @@ export default function App() {
       updated_at: new Date().toISOString(),
     });
   };
+  const save = (patch) => {
+    if (!user) return;
+    setData((prev) => {
+      const next = { ...prev, ...patch };
+      pendingSaveRef.current = next;
+      return next;
+    });
+    // debounce the Supabase write so rapid edits (typing, quick taps) don't fire one upsert each
+    clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(flushSave, 500);
+  };
   const saveSetting = (patch) => save({ settings: { ...data.settings, ...patch } });
+
+  // flush a pending debounced save immediately if the tab is backgrounded/closed
+  useEffect(() => {
+    const onHide = () => { if (document.visibilityState === "hidden") flushSave(); };
+    document.addEventListener("visibilitychange", onHide);
+    window.addEventListener("pagehide", flushSave);
+    return () => {
+      document.removeEventListener("visibilitychange", onHide);
+      window.removeEventListener("pagehide", flushSave);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
 
   const dayLog = data.log?.[today] || {};
   const setField = (id, val) => save({ log: { ...data.log, [today]: { ...dayLog, [id]: val } } });
@@ -475,37 +506,28 @@ export default function App() {
       hearing: String(Number(dayLog.hearingExtraDuration) || 0),
       mangala: dayLog.mangalAarti ? "✅ " + dayLog.mangalAarti : "❌",
     };
-    let out = (tmplText || DEFAULT_TEMPLATE.text).replace(/\{(\w+)\}/g, (m, k) => (k in map ? map[k] : m));
+    let out = (tmplText || DEFAULT_TEMPLATE.text).replace(/\{(\w+)\}/g, (m, k) => (k in map ? map[k] : ""));
     const done = customToday.filter((c) => c.done);
     if (done.length) out += "\n\n" + done.map((c) => `✅ ${c.label}`).join("\n");
     return out;
   }
 
   /* theme tokens */
-  const C = dark
-    ? { bg: "#0f0a05", card: "#1c140b", text: "#f3ede2", sub: "#9b8f7d", line: "#2e2316", elev: "#241a10" }
-    : { bg: "#fdf8f0", card: "#ffffff", text: "#2a2118", sub: "#7a6f5e", line: "#ece2d0", elev: "#fbf3e6" };
-  const accent = "#ff9933";
-  const green = "#5cb85c";
+  const C = getPalette(dark);
 
   const S = {
-    page: { background: C.bg, minHeight: "100dvh", color: C.text, fontFamily: "system-ui, -apple-system, sans-serif", paddingBottom: 92, touchAction: "pan-x pan-y" },
+    page: { background: C.bg, minHeight: "100dvh", color: C.text, fontFamily: "system-ui, -apple-system, sans-serif", paddingBottom: 92, touchAction: "pan-x pan-y", maxWidth: 480, margin: "0 auto" },
     head: { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 14px", borderBottom: `1px solid ${C.line}`, position: "sticky", top: 0, background: C.bg, zIndex: 20 },
-    card: { background: C.card, borderRadius: 16, padding: 16, margin: "12px 14px", border: `1px solid ${C.line}` },
     row: { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 0", borderBottom: `1px solid ${C.line}` },
-    btn: { background: accent, color: "#1a0e05", border: "none", padding: "14px 20px", borderRadius: 12, fontSize: 16, fontWeight: 700, cursor: "pointer", width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, minHeight: 48 },
-    btnGhost: { background: C.elev, color: C.text, border: `1px solid ${C.line}`, padding: "13px 18px", borderRadius: 12, fontSize: 15, fontWeight: 600, cursor: "pointer", minHeight: 44 },
     chk: (on) => ({ width: 30, height: 30, borderRadius: 8, border: `2px solid ${on ? accent : C.sub}`, background: on ? accent : "transparent", color: "#1a0e05", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", fontWeight: 800, fontSize: 18, flexShrink: 0 }),
     input: { background: C.bg, color: C.text, border: `1px solid ${C.line}`, borderRadius: 10, padding: "12px 12px", fontSize: 15, width: "100%", minHeight: 44, boxSizing: "border-box" },
-    tabs: { position: "fixed", bottom: 0, left: 0, right: 0, display: "flex", background: C.card, borderTop: `1px solid ${C.line}`, paddingTop: 8, paddingBottom: "calc(8px + env(safe-area-inset-bottom))", zIndex: 20 },
+    tabs: { position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 480, display: "flex", background: C.card, borderTop: `1px solid ${C.line}`, paddingTop: 8, paddingBottom: "calc(8px + env(safe-area-inset-bottom))", zIndex: 20 },
     tab: (a) => ({ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 3, padding: "6px 4px", fontSize: 11, fontWeight: a ? 700 : 500, color: a ? accent : C.sub, cursor: "pointer" }),
     sectionTitle: { fontWeight: 700, fontSize: 16, marginBottom: 12 },
-    iconBtn: { background: C.elev, border: `1px solid ${C.line}`, color: C.text, borderRadius: 10, width: 40, height: 40, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 },
-    chip: (a) => ({ padding: "9px 14px", borderRadius: 999, border: `1px solid ${a ? accent : C.line}`, background: a ? accent : "transparent", color: a ? "#1a0e05" : C.text, fontWeight: 600, fontSize: 14, cursor: "pointer", whiteSpace: "nowrap" }),
   };
 
   if (splash) return <SplashScreen onDone={() => setSplash(false)} />;
-  if (!authReady) return <div style={{ background: C.bg, minHeight: "100dvh" }} />;
+  if (!authReady) return <SkeletonScreen C={C} />;
   if (!user) return <Login />;
 
   const toggleDark = () => { const v = !dark; setDark(v); saveSetting({ dark: v }); };
@@ -514,13 +536,13 @@ export default function App() {
   const Header = ({ title }) => (
     <div style={S.head}>
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        <button aria-label="Menu" onClick={() => setDrawer(true)} style={S.iconBtn}><Icon name="menu" /></button>
+        <IconButton aria-label="Menu" onClick={() => setDrawer(true)}><Icon name="menu" /></IconButton>
         <div>
           <div style={{ fontWeight: 700, fontSize: 15 }}>{title || `${lang === "hi" ? "हरे कृष्ण" : "Hare Krishna"}, ${user.displayName?.split(" ")[0] || ""}`}</div>
           <div style={{ fontSize: 11, color: accent }}>All Glories to Srila Prabhupada</div>
         </div>
       </div>
-      <button aria-label="Theme" onClick={toggleDark} style={S.iconBtn}><Icon name={dark ? "sun" : "moon"} /></button>
+      <IconButton aria-label="Theme" onClick={toggleDark}><Icon name={dark ? "sun" : "moon"} /></IconButton>
     </div>
   );
 
@@ -555,17 +577,17 @@ export default function App() {
             <div style={{ borderTop: `1px solid ${C.line}`, margin: "8px 0", paddingTop: 12 }}>
               <div style={{ fontSize: 12, color: C.sub, padding: "0 8px 8px" }}>{lang === "hi" ? "थीम" : "Theme"}</div>
               <div style={{ display: "flex", gap: 8, padding: "0 8px" }}>
-                <button onClick={toggleDark} style={{ ...S.chip(false), flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+                <Chip onClick={toggleDark} style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
                   <Icon name={dark ? "sun" : "moon"} size={16} /> {dark ? "Light" : "Dark"}
-                </button>
-                <button onClick={toggleLang} style={{ ...S.chip(false), flex: 1 }}>{lang === "hi" ? "English" : "हिंदी"}</button>
+                </Chip>
+                <Chip onClick={toggleLang} style={{ flex: 1 }}>{lang === "hi" ? "English" : "हिंदी"}</Chip>
               </div>
             </div>
             <button onClick={() => { navigator.share ? navigator.share({ title: "Sadhna OS", text: "Track your daily sadhna 🙏", url: window.location.origin }).catch(() => {}) : window.open("https://wa.me/?text=" + encodeURIComponent("Track your daily sadhna with Sadhna OS 🙏 " + window.location.origin), "_blank"); setDrawer(false); }} style={{ display: "flex", alignItems: "center", gap: 14, width: "100%", background: "none", border: "none", color: C.text, padding: "14px 8px", fontSize: 15, fontWeight: 600, cursor: "pointer", textAlign: "left" }}>
               <Icon name="share" color={accent} /> {lang === "hi" ? "ऐप शेयर करें" : "Share App"}
             </button>
           </div>
-          <button onClick={() => supabase.auth.signOut()} style={{ display: "flex", alignItems: "center", gap: 14, width: "100%", background: "none", border: "none", color: "#d9534f", padding: "14px 8px", fontSize: 15, fontWeight: 700, cursor: "pointer", textAlign: "left", borderTop: `1px solid ${C.line}` }}>
+          <button onClick={() => { setDrawer(false); askConfirm(lang === "hi" ? "लॉगआउट करें?" : "Log out?", () => supabase.auth.signOut()); }} style={{ display: "flex", alignItems: "center", gap: 14, width: "100%", background: "none", border: "none", color: danger, padding: "14px 8px", fontSize: 15, fontWeight: 700, cursor: "pointer", textAlign: "left", borderTop: `1px solid ${C.line}` }}>
             <Icon name="logout" /> {tr("logout", lang)}
           </button>
         </div>
@@ -585,7 +607,7 @@ export default function App() {
             <div>
               <div style={{ color: C.sub, fontSize: 13 }}>{tr("progress", lang)}</div>
               <div style={{ fontSize: 15, color: green, fontWeight: 700, marginTop: 6 }}>{tr("done", lang)}: {doneCount}</div>
-              <div style={{ fontSize: 15, color: C.sub, fontWeight: 700 }}>{tr("pending", lang)}: {totalCount - doneCount}</div>
+              <div style={{ fontSize: 15, color: totalCount - doneCount > 0 ? warn : C.sub, fontWeight: 700 }}>{tr("pending", lang)}: {totalCount - doneCount}</div>
             </div>
           </div>
         );
@@ -610,18 +632,14 @@ export default function App() {
                 onChange={(e) => setField("reading", e.target.value)}
                 style={{ ...S.input, width: 90, textAlign: "center", fontSize: 22, fontWeight: 800 }} />
               <span style={{ color: C.sub }}>{lang === "hi" ? "मिनट पढ़ा" : "min read"}</span>
-              <button onClick={() => setScreen("timers")} style={{ ...S.btnGhost, marginLeft: "auto" }}>{lang === "hi" ? "टाइमर" : "Timer"}</button>
+              <Button ghost onClick={() => setScreen("timers")} style={{ width: "auto", marginLeft: "auto" }}>{lang === "hi" ? "टाइमर" : "Timer"}</Button>
             </div>
           </div>
         );
       case "goals": {
         const gs = data.goals || [];
         return (
-          <div>
-            <div style={{ ...S.sectionTitle, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <span>{WIDGET_META.goals[lang]}</span>
-              <button onClick={() => setScreen("goals")} style={{ background: "none", border: "none", color: accent, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>{lang === "hi" ? "सभी" : "All ›"}</button>
-            </div>
+          <Section title={WIDGET_META.goals[lang]} action={lang === "hi" ? "सभी" : "All ›"} onAction={() => setScreen("goals")}>
             {gs.length === 0 ? (
               <div style={{ color: C.sub, fontSize: 14 }}>{lang === "hi" ? "कोई लक्ष्य नहीं — जोड़ें" : "No goals yet — add one"}</div>
             ) : gs.slice(0, 3).map((g) => {
@@ -632,13 +650,11 @@ export default function App() {
                   <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 5 }}>
                     <span>{g.label}</span><span style={{ color: C.sub }}>{v}/{g.daily}</span>
                   </div>
-                  <div style={{ height: 8, background: C.bg, borderRadius: 5, overflow: "hidden" }}>
-                    <div style={{ width: p + "%", height: "100%", background: p >= 100 ? green : accent, transition: "width .4s" }} />
-                  </div>
+                  <ProgressBar pct={p} color={p >= 100 ? green : accent} />
                 </div>
               );
             })}
-          </div>
+          </Section>
         );
       }
       case "quicktimer":
@@ -649,9 +665,9 @@ export default function App() {
               {timers.slice(0, 3).map((t) => {
                 const running = runs[t.id]?.running;
                 return (
-                  <button key={t.id} onClick={() => { toggleRun(t.id); setScreen("timers"); }} style={{ ...S.chip(running), display: "flex", alignItems: "center", gap: 6 }}>
+                  <Chip key={t.id} active={running} onClick={() => { toggleRun(t.id); setScreen("timers"); }} style={{ display: "flex", alignItems: "center", gap: 6 }}>
                     <Icon name={running ? "pause" : "play"} size={15} /> {t.name}
-                  </button>
+                  </Chip>
                 );
               })}
             </div>
@@ -721,36 +737,36 @@ export default function App() {
       <>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 14px 0" }}>
           <div style={{ fontSize: 20, fontWeight: 800 }}>{lang === "hi" ? "डैशबोर्ड" : "Dashboard"}</div>
-          <button onClick={() => setEditingHome(!editingHome)} style={{ ...S.btnGhost, minHeight: 40, padding: "9px 14px", color: editingHome ? accent : C.text }}>
+          <Button ghost onClick={() => setEditingHome(!editingHome)} style={{ minHeight: 40, padding: "9px 14px", width: "auto", color: editingHome ? accent : C.text }}>
             {editingHome ? tr("doneEditing", lang) : tr("customize", lang)}
-          </button>
+          </Button>
         </div>
         {widgets.map((id, i) => (
-          <div key={id} style={{ ...S.card, position: "relative", ...(editingHome ? { borderColor: accent, borderStyle: "dashed" } : {}) }}>
+          <Card key={id} style={{ position: "relative", ...(editingHome ? { borderColor: accent, borderStyle: "dashed" } : {}) }}>
             {editingHome && (
               <div style={{ position: "absolute", top: 8, right: 8, display: "flex", gap: 6, zIndex: 2 }}>
-                <button aria-label="up" onClick={() => move(i, -1)} style={{ ...S.iconBtn, width: 32, height: 32 }}><Icon name="up" size={16} /></button>
-                <button aria-label="down" onClick={() => move(i, 1)} style={{ ...S.iconBtn, width: 32, height: 32 }}><Icon name="down" size={16} /></button>
-                <button aria-label="remove" onClick={() => save({ widgets: widgets.filter((w) => w !== id) })} style={{ ...S.iconBtn, width: 32, height: 32, color: "#d9534f" }}><Icon name="x" size={16} /></button>
+                <IconButton aria-label="up" onClick={() => move(i, -1)} style={{ width: 32, height: 32 }}><Icon name="up" size={16} /></IconButton>
+                <IconButton aria-label="down" onClick={() => move(i, 1)} style={{ width: 32, height: 32 }}><Icon name="down" size={16} /></IconButton>
+                <IconButton aria-label="remove" onClick={() => save({ widgets: widgets.filter((w) => w !== id) })} style={{ width: 32, height: 32, color: danger }}><Icon name="x" size={16} /></IconButton>
               </div>
             )}
             {renderWidget(id)}
-          </div>
+          </Card>
         ))}
         {editingHome && missing.length > 0 && (
-          <div style={S.card}>
+          <Card>
             <div style={{ ...S.sectionTitle }}>{tr("addWidget", lang)}</div>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               {missing.map((k) => (
-                <button key={k} onClick={() => save({ widgets: [...widgets, k] })} style={{ ...S.chip(false), display: "flex", alignItems: "center", gap: 6 }}>
+                <Chip key={k} onClick={() => save({ widgets: [...widgets, k] })} style={{ display: "flex", alignItems: "center", gap: 6 }}>
                   <Icon name="plus" size={15} /> {WIDGET_META[k][lang]}
-                </button>
+                </Chip>
               ))}
             </div>
-          </div>
+          </Card>
         )}
         {/* the full daily checklist still lives here, below the widgets */}
-        <div style={S.card}>
+        <Card>
           <div style={S.sectionTitle}>{tr("todaySadhna", lang)}</div>
           {FIXED.filter((f) => !f.show || f.show(dayLog)).map((f) => (
             <div key={f.id} style={S.row}>
@@ -771,7 +787,7 @@ export default function App() {
             </div>
           ))}
           <AddCustom />
-        </div>
+        </Card>
       </>
     );
   };
@@ -781,7 +797,7 @@ export default function App() {
     return (
       <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
         <input value={val} onChange={(e) => setVal(e.target.value)} placeholder={lang === "hi" ? "अपना कार्य जोड़ें" : "Add a custom task"} style={{ ...S.input, flex: 1 }} />
-        <button onClick={() => { if (!val.trim()) return; setCustom([...customToday, { label: val.trim(), done: false }]); setVal(""); }} style={{ ...S.btn, width: "auto", padding: "0 18px" }}><Icon name="plus" /></button>
+        <Button onClick={() => { if (!val.trim()) return; setCustom([...customToday, { label: val.trim(), done: false }]); setVal(""); }} style={{ width: "auto", padding: "0 18px" }}><Icon name="plus" /></Button>
       </div>
     );
   }
@@ -798,24 +814,25 @@ export default function App() {
       const id = name.trim().toLowerCase().replace(/\s+/g, "-") + "-" + Date.now().toString(36).slice(-4);
       save({ timers: [...timers, { id, name: name.trim(), mode, duration: mode === "countdown" ? mins * 60 : 0 }] });
       setName(""); setMode("stopwatch"); setMins(15); setShow(false);
+      showToast(lang === "hi" ? "टाइमर जोड़ा गया 🙏" : "Timer added 🙏");
     };
-    const removeTimer = (id) => { resetRun(id); save({ timers: timers.filter((t) => t.id !== id) }); };
+    const removeTimer = (id) => askConfirm(lang === "hi" ? "टाइमर हटाएं?" : "Delete this timer?", () => { resetRun(id); save({ timers: timers.filter((t) => t.id !== id) }); });
     const logToReading = (id, sec) => setField("reading", (Number(dayLog.reading) || 0) + Math.round(sec / 60));
 
     return (
       <div style={{ padding: "6px 0 8px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 14px" }}>
           <div style={{ fontSize: 20, fontWeight: 800 }}>{tr("timers", lang)}</div>
-          <button onClick={() => setShow(!show)} style={{ ...S.btn, width: "auto", padding: "0 16px", minHeight: 42 }}><Icon name="plus" size={18} /> {lang === "hi" ? "नया" : "Add"}</button>
+          <Button onClick={() => setShow(!show)} style={{ width: "auto", padding: "0 16px", minHeight: 42 }}><Icon name="plus" size={18} /> {lang === "hi" ? "नया" : "Add"}</Button>
         </div>
 
         {show && (
-          <div style={S.card}>
+          <Card>
             <div style={S.sectionTitle}>{lang === "hi" ? "नया टाइमर" : "New timer"}</div>
             <input value={name} onChange={(e) => setName(e.target.value)} placeholder={lang === "hi" ? "नाम (जैसे जप)" : "Name (e.g. Japa)"} style={{ ...S.input, marginBottom: 10 }} />
             <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
-              <button onClick={() => setMode("stopwatch")} style={{ ...S.chip(mode === "stopwatch"), flex: 1 }}>{lang === "hi" ? "स्टॉपवॉच" : "Stopwatch"}</button>
-              <button onClick={() => setMode("countdown")} style={{ ...S.chip(mode === "countdown"), flex: 1 }}>{lang === "hi" ? "काउंटडाउन" : "Countdown"}</button>
+              <Chip active={mode === "stopwatch"} onClick={() => setMode("stopwatch")} style={{ flex: 1 }}>{lang === "hi" ? "स्टॉपवॉच" : "Stopwatch"}</Chip>
+              <Chip active={mode === "countdown"} onClick={() => setMode("countdown")} style={{ flex: 1 }}>{lang === "hi" ? "काउंटडाउन" : "Countdown"}</Chip>
             </div>
             {mode === "countdown" && (
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
@@ -823,8 +840,8 @@ export default function App() {
                 <span style={{ color: C.sub }}>{lang === "hi" ? "मिनट" : "minutes"}</span>
               </div>
             )}
-            <button onClick={addTimer} style={S.btn}>{lang === "hi" ? "जोड़ें" : "Add timer"}</button>
-          </div>
+            <Button onClick={addTimer}>{lang === "hi" ? "जोड़ें" : "Add timer"}</Button>
+          </Card>
         )}
 
         {timers.map((t) => {
@@ -836,12 +853,12 @@ export default function App() {
           const done = isCd && el >= t.duration;
           const isDefault = DEFAULT_TIMERS.some((d) => d.id === t.id);
           return (
-            <div key={t.id} style={S.card}>
+            <Card key={t.id}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
                 <div style={{ fontWeight: 700, fontSize: 16 }}>{t.name}</div>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   <span style={{ fontSize: 11, color: C.sub, textTransform: "uppercase", letterSpacing: .5 }}>{isCd ? (lang === "hi" ? "काउंटडाउन" : "countdown") : (lang === "hi" ? "स्टॉपवॉच" : "stopwatch")}</span>
-                  {!isDefault && <button aria-label="delete" onClick={() => removeTimer(t.id)} style={{ ...S.iconBtn, width: 34, height: 34, color: "#d9534f" }}><Icon name="trash" size={16} /></button>}
+                  {!isDefault && <IconButton aria-label="delete" onClick={() => removeTimer(t.id)} style={{ width: 34, height: 34, color: danger }}><Icon name="trash" size={16} /></IconButton>}
                 </div>
               </div>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 16 }}>
@@ -854,17 +871,17 @@ export default function App() {
                 )}
               </div>
               <div style={{ display: "flex", gap: 10 }}>
-                <button onClick={() => toggleRun(t.id)} style={{ ...S.btn, background: running ? "#d9534f" : accent }}>
+                <Button onClick={() => toggleRun(t.id)} style={{ background: running ? danger : accent }}>
                   <Icon name={running ? "pause" : "play"} size={18} /> {running ? (lang === "hi" ? "रोकें" : "Pause") : (lang === "hi" ? "शुरू" : "Start")}
-                </button>
-                <button onClick={() => resetRun(t.id)} style={{ ...S.btnGhost, flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}><Icon name="reset" size={18} /> {lang === "hi" ? "रीसेट" : "Reset"}</button>
+                </Button>
+                <Button ghost onClick={() => resetRun(t.id)} style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}><Icon name="reset" size={18} /> {lang === "hi" ? "रीसेट" : "Reset"}</Button>
               </div>
               {t.id === "reading" && el > 30 && (
-                <button onClick={() => { logToReading(t.id, el); resetRun(t.id); }} style={{ ...S.btnGhost, width: "100%", marginTop: 10, color: green }}>
+                <Button ghost onClick={() => { logToReading(t.id, el); resetRun(t.id); }} style={{ width: "100%", marginTop: 10, color: green }}>
                   {lang === "hi" ? "पठन में जोड़ें" : `Log ${Math.round(el / 60)} min to Reading`}
-                </button>
+                </Button>
               )}
-            </div>
+            </Card>
           );
         })}
       </div>
@@ -885,23 +902,24 @@ export default function App() {
       const g = { id: Date.now().toString(36), label: label.trim(), metric, daily: Number(dailyT) || METRICS[metric].target, reminder };
       save({ goals: [...goals, g] });
       setLabel(""); setShow(false);
+      showToast(lang === "hi" ? "लक्ष्य जोड़ा गया 🙏" : "Goal added 🙏");
     };
-    const remove = (id) => confirm(lang === "hi" ? "लक्ष्य हटाएं?" : "Delete goal?") && save({ goals: goals.filter((g) => g.id !== id) });
+    const remove = (id) => askConfirm(lang === "hi" ? "लक्ष्य हटाएं?" : "Delete goal?", () => save({ goals: goals.filter((g) => g.id !== id) }));
 
     return (
       <div style={{ padding: "6px 0 8px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 14px" }}>
           <div style={{ fontSize: 20, fontWeight: 800 }}>{tr("goals", lang)}</div>
-          <button onClick={() => setShow(!show)} style={{ ...S.btn, width: "auto", padding: "0 16px", minHeight: 42 }}><Icon name="plus" size={18} /> {lang === "hi" ? "नया" : "Add"}</button>
+          <Button onClick={() => setShow(!show)} style={{ width: "auto", padding: "0 16px", minHeight: 42 }}><Icon name="plus" size={18} /> {lang === "hi" ? "नया" : "Add"}</Button>
         </div>
 
         {show && (
-          <div style={S.card}>
+          <Card>
             <div style={S.sectionTitle}>{lang === "hi" ? "नया लक्ष्य" : "New goal"}</div>
             <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder={lang === "hi" ? "लक्ष्य का नाम" : "Goal name"} style={{ ...S.input, marginBottom: 10 }} />
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
               {Object.keys(METRICS).map((k) => (
-                <button key={k} onClick={() => { setMetric(k); setDailyT(METRICS[k].target); }} style={S.chip(metric === k)}>{METRICS[k][lang]}</button>
+                <Chip key={k} active={metric === k} onClick={() => { setMetric(k); setDailyT(METRICS[k].target); }}>{METRICS[k][lang]}</Chip>
               ))}
             </div>
             <div style={{ display: "flex", gap: 12, marginBottom: 10 }}>
@@ -914,14 +932,14 @@ export default function App() {
                 <input type="time" value={reminder} onChange={(e) => setReminder(e.target.value)} onClick={(e) => e.target.showPicker?.()} style={S.input} />
               </div>
             </div>
-            <button onClick={addGoal} style={S.btn}>{lang === "hi" ? "लक्ष्य जोड़ें" : "Add goal"}</button>
-          </div>
+            <Button onClick={addGoal}>{lang === "hi" ? "लक्ष्य जोड़ें" : "Add goal"}</Button>
+          </Card>
         )}
 
         {goals.length === 0 && !show && (
-          <div style={{ ...S.card, textAlign: "center", color: C.sub, padding: "40px 20px" }}>
-            {lang === "hi" ? "अभी कोई लक्ष्य नहीं। ऊपर 'जोड़ें' दबाएं।" : "No goals yet. Tap Add to create one."}
-          </div>
+          <Card>
+            <EmptyState text={lang === "hi" ? "अभी कोई लक्ष्य नहीं। ऊपर 'जोड़ें' दबाएं।" : "No goals yet. Tap Add to create one."} />
+          </Card>
         )}
 
         {goals.map((g) => {
@@ -932,7 +950,7 @@ export default function App() {
           const streak = streakMetric(data, g.metric, g.daily);
           const unit = METRICS[g.metric]?.unit || "";
           return (
-            <div key={g.id} style={S.card}>
+            <Card key={g.id}>
               <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
                 <Ring pct={p} size={78} stroke={9} color={p >= 100 ? green : accent} track={C.line}>
                   <span style={{ fontSize: 18, color: p >= 100 ? green : accent }}>{p}%</span>
@@ -940,24 +958,18 @@ export default function App() {
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                     <div style={{ fontWeight: 700, fontSize: 16 }}>{g.label}</div>
-                    <button aria-label="delete" onClick={() => remove(g.id)} style={{ ...S.iconBtn, width: 32, height: 32, color: "#d9534f" }}><Icon name="trash" size={15} /></button>
+                    <IconButton aria-label="delete" onClick={() => remove(g.id)} style={{ width: 32, height: 32, color: danger }}><Icon name="trash" size={15} /></IconButton>
                   </div>
                   <div style={{ fontSize: 14, color: C.sub, marginTop: 4 }}>{lang === "hi" ? "आज" : "Today"}: <b style={{ color: C.text }}>{today_v}/{g.daily} {unit}</b></div>
                   <div style={{ fontSize: 13, color: accent, marginTop: 4, fontWeight: 700 }}>🔥 {streak} {lang === "hi" ? "दिन की श्रृंखला" : "day streak"}</div>
                 </div>
               </div>
               <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
-                <div style={{ flex: 1, background: C.bg, borderRadius: 10, padding: "10px 12px" }}>
-                  <div style={{ fontSize: 11, color: C.sub }}>{lang === "hi" ? "साप्ताहिक" : "Weekly"}</div>
-                  <div style={{ fontWeight: 800, fontSize: 17, fontVariantNumeric: "tabular-nums" }}>{week}<span style={{ fontSize: 11, color: C.sub, fontWeight: 600 }}> / {g.daily * 7}</span></div>
-                </div>
-                <div style={{ flex: 1, background: C.bg, borderRadius: 10, padding: "10px 12px" }}>
-                  <div style={{ fontSize: 11, color: C.sub }}>{lang === "hi" ? "मासिक" : "Monthly"}</div>
-                  <div style={{ fontWeight: 800, fontSize: 17, fontVariantNumeric: "tabular-nums" }}>{month}<span style={{ fontSize: 11, color: C.sub, fontWeight: 600 }}> / {g.daily * 30}</span></div>
-                </div>
+                <StatTile label={lang === "hi" ? "साप्ताहिक" : "Weekly"} value={week} unit={`/ ${g.daily * 7}`} />
+                <StatTile label={lang === "hi" ? "मासिक" : "Monthly"} value={month} unit={`/ ${g.daily * 30}`} />
               </div>
               {g.reminder && <div style={{ fontSize: 12, color: C.sub, marginTop: 10, display: "flex", alignItems: "center", gap: 6 }}><Icon name="bell" size={14} color={C.sub} /> {lang === "hi" ? "रिमाइंडर" : "Reminder"} {g.reminder}</div>}
-            </div>
+            </Card>
           );
         })}
       </div>
@@ -991,20 +1003,21 @@ export default function App() {
         save({ templates: templates.map((t) => (t.id === editing ? { ...t, name: name.trim(), text } : t)) });
       }
       setEditing(null);
+      showToast(lang === "hi" ? "सहेजा गया 🙏" : "Saved 🙏");
     };
-    const delTmpl = (id) => save({ templates: templates.filter((t) => t.id !== id) });
+    const delTmpl = (id) => askConfirm(lang === "hi" ? "टेम्पलेट हटाएं?" : "Delete this template?", () => save({ templates: templates.filter((t) => t.id !== id) }));
 
     return (
       <div style={{ padding: "6px 0 8px" }}>
         <div style={{ fontSize: 20, fontWeight: 800, padding: "8px 14px" }}>{tr("reports", lang)}</div>
         <div style={{ display: "flex", gap: 8, padding: "0 14px 4px" }}>
-          <button onClick={() => setTab("share")} style={{ ...S.chip(tab === "share"), flex: 1 }}>{lang === "hi" ? "शेयर करें" : "Share"}</button>
-          <button onClick={() => setTab("templates")} style={{ ...S.chip(tab === "templates"), flex: 1 }}>{lang === "hi" ? "टेम्पलेट" : "Templates"}</button>
+          <Chip active={tab === "share"} onClick={() => setTab("share")} style={{ flex: 1 }}>{lang === "hi" ? "शेयर करें" : "Share"}</Chip>
+          <Chip active={tab === "templates"} onClick={() => setTab("templates")} style={{ flex: 1 }}>{lang === "hi" ? "टेम्पलेट" : "Templates"}</Chip>
         </div>
 
         {tab === "share" && (
           <>
-            <div style={S.card}>
+            <Card>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
                 <div style={S.sectionTitle}>{lang === "hi" ? "पूर्वावलोकन" : "Preview"}</div>
                 <select value={activeId} onChange={(e) => saveSetting({ activeTemplate: e.target.value })} style={{ ...S.input, width: "auto", padding: "8px 10px" }}>
@@ -1012,41 +1025,41 @@ export default function App() {
                 </select>
               </div>
               <div style={{ background: C.bg, borderRadius: 12, padding: 14, whiteSpace: "pre-wrap", fontSize: 14, lineHeight: 1.5, border: `1px solid ${C.line}` }}>{preview}</div>
-              <button onClick={() => share()} style={{ ...S.btn, marginTop: 14, background: "#25D366", color: "#fff" }}><Icon name="share" size={18} /> {lang === "hi" ? "WhatsApp पर भेजें" : "Share on WhatsApp"}</button>
-            </div>
-            <div style={S.card}>
+              <Button onClick={() => share()} style={{ marginTop: 14, background: "#25D366", color: "#fff" }}><Icon name="share" size={18} /> {lang === "hi" ? "WhatsApp पर भेजें" : "Share on WhatsApp"}</Button>
+            </Card>
+            <Card>
               <div style={S.sectionTitle}>{lang === "hi" ? "पूर्वनिर्धारित नंबर" : "Predefined numbers"}</div>
               {numbers.length > 0 ? (
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
-                  {numbers.map((n) => <button key={n} onClick={() => share(n)} style={{ ...S.chip(false), display: "flex", alignItems: "center", gap: 6 }}><Icon name="share" size={14} /> {n}</button>)}
+                  {numbers.map((n) => <Chip key={n} onClick={() => share(n)} style={{ display: "flex", alignItems: "center", gap: 6 }}><Icon name="share" size={14} /> {n}</Chip>)}
                 </div>
               ) : <div style={{ color: C.sub, fontSize: 14, marginBottom: 12 }}>{lang === "hi" ? "नीचे नंबर जोड़ें (कॉमा से अलग)" : "Add numbers below (comma-separated, with country code)"}</div>}
               <div style={{ display: "flex", gap: 8 }}>
                 <input value={numbersStr} onChange={(e) => setNumbersStr(e.target.value)} placeholder="91XXXXXXXXXX, 91YYYYYYYYYY" style={{ ...S.input, flex: 1 }} />
-                <button onClick={() => saveSetting({ waNumbers: numbersStr.split(",").map((x) => x.trim()).filter(Boolean) })} style={{ ...S.btn, width: "auto", padding: "0 16px" }}>{lang === "hi" ? "सहेजें" : "Save"}</button>
+                <Button onClick={() => { saveSetting({ waNumbers: numbersStr.split(",").map((x) => x.trim()).filter(Boolean) }); showToast(lang === "hi" ? "सहेजा गया 🙏" : "Saved 🙏"); }} style={{ width: "auto", padding: "0 16px" }}>{lang === "hi" ? "सहेजें" : "Save"}</Button>
               </div>
-            </div>
+            </Card>
           </>
         )}
 
         {tab === "templates" && (
           <>
             {editing ? (
-              <div style={S.card}>
+              <Card>
                 <div style={S.sectionTitle}>{editing === "new" ? (lang === "hi" ? "नया टेम्पलेट" : "New template") : (lang === "hi" ? "संपादित करें" : "Edit template")}</div>
                 <input value={name} onChange={(e) => setName(e.target.value)} placeholder={lang === "hi" ? "टेम्पलेट नाम" : "Template name"} style={{ ...S.input, marginBottom: 10 }} />
                 <textarea value={text} onChange={(e) => setText(e.target.value)} rows={10} style={{ ...S.input, resize: "vertical", fontFamily: "inherit", lineHeight: 1.5 }} />
                 <div style={{ fontSize: 12, color: C.sub, marginTop: 8 }}>{lang === "hi" ? "प्लेसहोल्डर" : "Placeholders"}: {"{date} {name} {rounds} {reading} {hearing} {mangala}"}</div>
                 <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
-                  <button onClick={saveTmpl} style={S.btn}>{lang === "hi" ? "सहेजें" : "Save"}</button>
-                  <button onClick={() => setEditing(null)} style={{ ...S.btnGhost, flex: 1 }}>{lang === "hi" ? "रद्द करें" : "Cancel"}</button>
+                  <Button onClick={saveTmpl}>{lang === "hi" ? "सहेजें" : "Save"}</Button>
+                  <Button ghost onClick={() => setEditing(null)} style={{ flex: 1 }}>{lang === "hi" ? "रद्द करें" : "Cancel"}</Button>
                 </div>
-              </div>
+              </Card>
             ) : (
               <div style={{ padding: "0 14px" }}>
-                <button onClick={startNew} style={{ ...S.btn, marginBottom: 12 }}><Icon name="plus" size={18} /> {lang === "hi" ? "नया टेम्पलेट" : "New template"}</button>
+                <Button onClick={startNew} style={{ marginBottom: 12 }}><Icon name="plus" size={18} /> {lang === "hi" ? "नया टेम्पलेट" : "New template"}</Button>
                 {templates.map((t) => (
-                  <div key={t.id} style={{ ...S.card, margin: "0 0 12px" }}>
+                  <Card key={t.id} style={{ margin: "0 0 12px" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
                       <div style={{ fontWeight: 700, fontSize: 16, display: "flex", alignItems: "center", gap: 8 }}>
                         {t.name}
@@ -1057,9 +1070,9 @@ export default function App() {
                     <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
                       <button onClick={() => saveSetting({ activeTemplate: t.id })} style={{ background: "none", border: "none", color: accent, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>{lang === "hi" ? "उपयोग करें" : "Use"}</button>
                       <button onClick={() => startEdit(t)} style={{ background: "none", border: "none", color: accent, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>{lang === "hi" ? "संपादित" : "Edit"}</button>
-                      {templates.length > 1 && <button onClick={() => delTmpl(t.id)} style={{ background: "none", border: "none", color: "#d9534f", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>{lang === "hi" ? "हटाएं" : "Delete"}</button>}
+                      {templates.length > 1 && <button onClick={() => delTmpl(t.id)} style={{ background: "none", border: "none", color: danger, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>{lang === "hi" ? "हटाएं" : "Delete"}</button>}
                     </div>
-                  </div>
+                  </Card>
                 ))}
               </div>
             )}
@@ -1082,26 +1095,26 @@ export default function App() {
     return (
       <div style={{ padding: "6px 0 8px" }}>
         <div style={{ fontSize: 20, fontWeight: 800, padding: "8px 14px" }}>{tr("notifications", lang)}</div>
-        <div style={S.card}>
+        <Card>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <div>
               <div style={{ fontWeight: 700 }}>{lang === "hi" ? "ब्राउज़र सूचनाएं" : "Browser notifications"}</div>
               <div style={{ fontSize: 13, color: C.sub, marginTop: 4 }}>{perm === "granted" ? (lang === "hi" ? "सक्षम" : "Enabled") : perm === "denied" ? (lang === "hi" ? "ब्राउज़र में अवरुद्ध" : "Blocked in browser") : (lang === "hi" ? "अनुमति चाहिए" : "Permission needed")}</div>
             </div>
-            {perm !== "granted" && <button onClick={req} style={{ ...S.btn, width: "auto", padding: "0 18px" }}>{lang === "hi" ? "चालू करें" : "Enable"}</button>}
+            {perm !== "granted" && <Button onClick={req} style={{ width: "auto", padding: "0 18px" }}>{lang === "hi" ? "चालू करें" : "Enable"}</Button>}
           </div>
           <div style={{ ...S.row, marginTop: 8 }}>
             <span>{lang === "hi" ? "लक्ष्य रिमाइंडर" : "Goal reminders"}</span>
-            <div style={S.chk(!!s.notificationsEnabled)} onClick={() => saveSetting({ notificationsEnabled: !s.notificationsEnabled })}>{s.notificationsEnabled ? "✓" : ""}</div>
+            <Toggle on={!!s.notificationsEnabled} onChange={(v) => saveSetting({ notificationsEnabled: v })} />
           </div>
           <div style={{ fontSize: 12, color: C.sub, marginTop: 8 }}>{lang === "hi" ? "टाइमर पूरा होने और लक्ष्य छूटने पर सूचना (ऐप खुला रहने पर सर्वोत्तम)।" : "Fires on timer completion and missed goals. Works best while the app is open — true background push needs a server."}</div>
-        </div>
+        </Card>
 
-        <div style={S.card}>
+        <Card>
           <div style={S.sectionTitle}>{lang === "hi" ? "स्वचालित WhatsApp रिपोर्ट" : "Auto WhatsApp report"}</div>
           <div style={S.row}>
             <span>{lang === "hi" ? "सक्षम करें" : "Enable"}</span>
-            <div style={S.chk(!!s.autoSendEnabled)} onClick={() => saveSetting({ autoSendEnabled: !s.autoSendEnabled })}>{s.autoSendEnabled ? "✓" : ""}</div>
+            <Toggle on={!!s.autoSendEnabled} onChange={(v) => saveSetting({ autoSendEnabled: v })} />
           </div>
           {s.autoSendEnabled && (
             <div style={{ ...S.row, borderBottom: "none" }}>
@@ -1109,7 +1122,7 @@ export default function App() {
               <input type="time" value={s.autoSendTime || "20:00"} onChange={(e) => saveSetting({ autoSendTime: e.target.value })} onClick={(e) => e.target.showPicker?.()} style={{ ...S.input, width: "auto" }} />
             </div>
           )}
-        </div>
+        </Card>
       </div>
     );
   }
@@ -1127,7 +1140,7 @@ export default function App() {
     return (
       <div style={{ padding: "6px 0 8px" }}>
         <div style={{ fontSize: 20, fontWeight: 800, padding: "8px 14px" }}>{tr("insights", lang)}</div>
-        <div style={S.card}>
+        <Card>
           <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 16 }}>
             <Ring pct={avg} size={72} stroke={8} color={accent} track={C.line}><span style={{ fontSize: 18, color: accent }}>{avg}%</span></Ring>
             <div><div style={{ color: C.sub, fontSize: 13 }}>{lang === "hi" ? "7-दिन औसत" : "7-day average"}</div><div style={{ fontSize: 15, fontWeight: 700, marginTop: 4 }}>{lang === "hi" ? "साधना पूर्णता" : "Sadhna completion"}</div></div>
@@ -1141,8 +1154,8 @@ export default function App() {
               </div>
             ))}
           </div>
-        </div>
-        <div style={S.card}>
+        </Card>
+        <Card>
           <div style={S.sectionTitle}>{lang === "hi" ? "मेट्रिक्स (आज)" : "Metrics (today)"}</div>
           {Object.keys(METRICS).map((k) => (
             <div key={k} style={S.row}>
@@ -1150,7 +1163,7 @@ export default function App() {
               <b style={{ color: accent, fontVariantNumeric: "tabular-nums" }}>{dayMetric(data, k, today)} {METRICS[k].unit}</b>
             </div>
           ))}
-        </div>
+        </Card>
       </div>
     );
   }
@@ -1172,7 +1185,7 @@ export default function App() {
       setLoading(false);
     };
     return (
-      <div style={S.card}>
+      <Card>
         <div style={S.sectionTitle}>{lang === "hi" ? "प्रभुपाद की पुस्तकों से पूछें" : "Ask from Prabhupada's books"}</div>
         <div style={{ color: C.sub, fontSize: 13, marginBottom: 14 }}>{lang === "hi" ? "गीता, भागवतम् आदि के आधार पर उत्तर" : "Answers grounded in Gita, Bhagavatam etc."}</div>
         <div style={{ minHeight: 180, maxHeight: 360, overflowY: "auto", marginBottom: 14 }}>
@@ -1183,9 +1196,9 @@ export default function App() {
         </div>
         <div style={{ display: "flex", gap: 10 }}>
           <input value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => e.key === "Enter" && ask()} placeholder={lang === "hi" ? "अपना प्रश्न लिखें…" : "Type your question…"} style={{ ...S.input, flex: 1 }} />
-          <button onClick={ask} style={{ ...S.btn, width: "auto", padding: "0 20px" }}>{lang === "hi" ? "पूछें" : "Ask"}</button>
+          <Button onClick={ask} style={{ width: "auto", padding: "0 20px" }}>{lang === "hi" ? "पूछें" : "Ask"}</Button>
         </div>
-      </div>
+      </Card>
     );
   }
 
@@ -1201,8 +1214,9 @@ export default function App() {
       const note = { id: editing?.id || Date.now(), title: title.trim(), body: body.trim(), date: Date.now() };
       save({ notes: editing ? notes.map((n) => (n.id === editing.id ? note : n)) : [...notes, note] });
       setEditing(null); setTitle(""); setBody(""); setShowEditor(false);
+      showToast(lang === "hi" ? "सहेजा गया 🙏" : "Saved 🙏");
     };
-    const deleteNote = (id) => confirm(lang === "hi" ? "नोट हटाएं?" : "Delete note?") && save({ notes: notes.filter((n) => n.id !== id) });
+    const deleteNote = (id) => askConfirm(lang === "hi" ? "नोट हटाएं?" : "Delete note?", () => save({ notes: notes.filter((n) => n.id !== id) }));
     const shareNote = (note) => window.open("https://wa.me/?text=" + encodeURIComponent(`${note.title ? note.title + "\n\n" : ""}${note.body}`), "_blank");
 
     return (
@@ -1210,9 +1224,9 @@ export default function App() {
         {showEditor && (
           <div style={{ position: "fixed", inset: 0, background: C.bg, zIndex: 100, display: "flex", flexDirection: "column" }}>
             <div style={{ ...S.head }}>
-              <button onClick={() => { setShowEditor(false); setEditing(null); setTitle(""); setBody(""); }} style={{ ...S.iconBtn }}><Icon name="x" /></button>
+              <IconButton onClick={() => { setShowEditor(false); setEditing(null); setTitle(""); setBody(""); }}><Icon name="x" /></IconButton>
               <div style={{ fontWeight: 700, fontSize: 16 }}>{editing ? (lang === "hi" ? "संपादित करें" : "Edit") : (lang === "hi" ? "नया नोट" : "New Note")}</div>
-              <button onClick={saveNote} style={{ ...S.btn, width: "auto", padding: "0 16px", minHeight: 40 }}>{lang === "hi" ? "सहेजें" : "Save"}</button>
+              <Button onClick={saveNote} style={{ width: "auto", padding: "0 16px", minHeight: 40 }}>{lang === "hi" ? "सहेजें" : "Save"}</Button>
             </div>
             <div style={{ flex: 1, padding: 16, overflowY: "auto" }}>
               <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder={lang === "hi" ? "शीर्षक" : "Title"} style={{ ...S.input, marginBottom: 16, fontWeight: 700, fontSize: 20, border: "none", borderBottom: `1px solid ${C.line}`, borderRadius: 0, padding: "12px 0" }} />
@@ -1222,9 +1236,9 @@ export default function App() {
         )}
         <div style={{ padding: 14 }}>
           <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 12 }}>{tr("notes", lang)}</div>
-          <button onClick={() => setShowEditor(true)} style={{ ...S.btn, marginBottom: 16 }}><Icon name="plus" size={18} /> {lang === "hi" ? "नया नोट" : "New Note"}</button>
+          <Button onClick={() => setShowEditor(true)} style={{ marginBottom: 16 }}><Icon name="plus" size={18} /> {lang === "hi" ? "नया नोट" : "New Note"}</Button>
           {notes.length === 0 ? (
-            <div style={{ textAlign: "center", color: C.sub, padding: "40px 20px", fontSize: 15 }}>{lang === "hi" ? "कोई नोट्स नहीं हैं" : "No notes yet"}</div>
+            <EmptyState text={lang === "hi" ? "कोई नोट्स नहीं हैं" : "No notes yet"} />
           ) : notes.map((note) => (
             <div key={note.id} style={{ background: C.card, borderRadius: 14, padding: 16, marginBottom: 12, border: `1px solid ${C.line}` }}>
               {note.title && <div style={{ fontWeight: 700, fontSize: 17, marginBottom: 8 }}>{note.title}</div>}
@@ -1233,7 +1247,7 @@ export default function App() {
               <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
                 <button onClick={() => { setEditing(note); setTitle(note.title); setBody(note.body); setShowEditor(true); }} style={{ background: "none", border: "none", color: accent, cursor: "pointer", fontSize: 13, fontWeight: 700 }}>{lang === "hi" ? "संपादित" : "Edit"}</button>
                 <button onClick={() => shareNote(note)} style={{ background: "none", border: "none", color: "#25D366", cursor: "pointer", fontSize: 13, fontWeight: 700 }}>{lang === "hi" ? "शेयर" : "Share"}</button>
-                <button onClick={() => deleteNote(note.id)} style={{ background: "none", border: "none", color: "#d9534f", cursor: "pointer", fontSize: 13, fontWeight: 700 }}>{lang === "hi" ? "हटाएं" : "Delete"}</button>
+                <button onClick={() => deleteNote(note.id)} style={{ background: "none", border: "none", color: danger, cursor: "pointer", fontSize: 13, fontWeight: 700 }}>{lang === "hi" ? "हटाएं" : "Delete"}</button>
               </div>
             </div>
           ))}
@@ -1261,18 +1275,31 @@ export default function App() {
   const headerTitle = { insights: tr("insights", lang), notes: tr("notes", lang), ai: tr("ai", lang), notifications: tr("notifications", lang) }[screen];
 
   return (
-    <div style={S.page}>
-      <Header title={headerTitle} />
-      <Drawer />
-      {screens[screen]}
-      <div style={S.tabs}>
-        {navItems.map((n) => (
-          <button key={n.id} onClick={() => setScreen(n.id)} style={S.tab(screen === n.id)}>
-            <Icon name={n.icon} size={22} color={screen === n.id ? accent : C.sub} w={screen === n.id ? 2.4 : 2} />
-            {n.label}
-          </button>
-        ))}
+    <ThemeContext.Provider value={{ C, accent, green, warn, danger }}>
+      <div style={{ background: C.bg, minHeight: "100dvh" }}>
+      <div style={S.page}>
+        <Header title={headerTitle} />
+        <Drawer />
+        {screens[screen]}
+        <div style={S.tabs}>
+          {navItems.map((n) => (
+            <button key={n.id} onClick={() => setScreen(n.id)} style={S.tab(screen === n.id)}>
+              <Icon name={n.icon} size={22} color={screen === n.id ? accent : C.sub} w={screen === n.id ? 2.4 : 2} />
+              {n.label}
+            </button>
+          ))}
+        </div>
+        <Toast message={toast} />
+        <ConfirmSheet
+          open={!!confirmState}
+          message={confirmState?.message}
+          confirmLabel={lang === "hi" ? "हटाएं" : "Delete"}
+          cancelLabel={lang === "hi" ? "रद्द करें" : "Cancel"}
+          onConfirm={() => { confirmState?.onConfirm(); setConfirmState(null); }}
+          onCancel={() => setConfirmState(null)}
+        />
       </div>
-    </div>
+      </div>
+    </ThemeContext.Provider>
   );
 }
