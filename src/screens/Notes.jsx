@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useApp } from "../appContext";
-import { useTheme } from "../theme";
+import { useTheme, fontDisplay } from "../theme";
 import { tr } from "../lib/constants";
 import { Button } from "../components/Button";
 import { IconButton } from "../components/IconButton";
@@ -41,7 +41,7 @@ export function Notes() {
         </div>
       )}
       <div style={{ padding: 14 }}>
-        <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 12 }}>{tr("notes", lang)}</div>
+        <div style={{ fontSize: 22, fontWeight: 700, fontFamily: fontDisplay, marginBottom: 12 }}>{tr("notes", lang)}</div>
         <Button onClick={() => setShowEditor(true)} style={{ marginBottom: 16 }}><Icon name="plus" size={18} /> {lang === "hi" ? "नया नोट" : "New Note"}</Button>
         {notes.length === 0 ? (
           <EmptyState text={lang === "hi" ? "कोई नोट्स नहीं हैं" : "No notes yet"} />

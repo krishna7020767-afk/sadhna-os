@@ -7,12 +7,13 @@ export function Toast({ message }) {
     <div
       style={{
         position: "fixed", bottom: 84, left: "50%", transform: "translateX(-50%)",
-        background: C.cardRaised, color: C.text, padding: "12px 20px", borderRadius: 12,
+        background: C.cardRaised, color: C.text, padding: "12px 20px", borderRadius: 14,
         border: `1px solid ${C.line}`, fontSize: 14, fontWeight: 600, zIndex: 200,
-        boxShadow: "0 4px 20px rgba(0,0,0,.35)", maxWidth: "88%", textAlign: "center",
-        pointerEvents: "none",
+        boxShadow: C.shadowLg, maxWidth: "88%", textAlign: "center",
+        pointerEvents: "none", animation: "pw-toast-in .25s ease-out",
       }}
     >
+      <style>{`@keyframes pw-toast-in{from{opacity:0;transform:translate(-50%,8px)}to{opacity:1;transform:translate(-50%,0)}}`}</style>
       {message}
     </div>
   );

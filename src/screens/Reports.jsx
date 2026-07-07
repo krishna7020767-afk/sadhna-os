@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useApp } from "../appContext";
-import { useTheme } from "../theme";
+import { useTheme, fontDisplay } from "../theme";
 import { tr, DEFAULT_TEMPLATE } from "../lib/constants";
 import { Card } from "../components/Card";
 import { Button } from "../components/Button";
@@ -15,6 +15,13 @@ export function Reports() {
   const [name, setName] = useState("");
   const [text, setText] = useState("");
   const [numbersStr, setNumbersStr] = useState((data.settings?.waNumbers || []).join(", "));
+
+  // data.settings arrives asynchronously from Supabase after this component may have
+  // already mounted with the useState initializer above — resync once the real row lands
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- syncing local form buffer from a remote row, not derivable from props
+    setNumbersStr((data.settings?.waNumbers || []).join(", "));
+  }, [data.settings?.waNumbers]);
 
   const activeId = data.settings?.activeTemplate || templates[0]?.id;
   const preview = buildReport(activeTemplateText());
@@ -41,7 +48,7 @@ export function Reports() {
 
   return (
     <div style={{ padding: "6px 0 8px" }}>
-      <div style={{ fontSize: 20, fontWeight: 800, padding: "8px 14px" }}>{tr("reports", lang)}</div>
+      <div style={{ fontSize: 22, fontWeight: 700, fontFamily: fontDisplay, padding: "8px 14px" }}>{tr("reports", lang)}</div>
       <div style={{ display: "flex", gap: 8, padding: "0 14px 4px" }}>
         <Chip active={tab === "share"} onClick={() => setTab("share")} style={{ flex: 1 }}>{lang === "hi" ? "शेयर करें" : "Share"}</Chip>
         <Chip active={tab === "templates"} onClick={() => setTab("templates")} style={{ flex: 1 }}>{lang === "hi" ? "टेम्पलेट" : "Templates"}</Chip>

@@ -1,10 +1,10 @@
 import { useEffect, useState, useRef } from "react";
 import { supabase } from "./supabaseClient";
 import { mapUser, dateKey, prettyDate, notify } from "./lib/helpers";
-import { getPalette, ThemeContext, accent, green, warn, danger } from "./theme";
+import { getPalette, ThemeContext, accent, accentDeep, accentGradient, green, warn, danger, fontBody, fontDisplay } from "./theme";
 import { AppContext } from "./appContext";
 import {
-  EMPTY, DEFAULT_TIMERS, DEFAULT_WIDGETS, DEFAULT_TEMPLATE, RUN_KEY, tr,
+  EMPTY, DEFAULT_TIMERS, DEFAULT_WIDGETS, DEFAULT_TEMPLATE, tr,
 } from "./lib/constants";
 import { dayMetric } from "./lib/metrics";
 import { Toast } from "./components/Toast";
@@ -88,18 +88,18 @@ function SplashScreen({ onDone }) {
         <img key={i} src={quote.img} alt="" style={{ width: 120, height: 120, borderRadius: "50%", objectFit: "cover", border: "4px solid #ff9933", animation: "pulsePhoto 3s ease-in-out infinite" }} />
       </div>
       <div key={i} style={{ animation: "fadeInQuote 0.8s ease-out", maxWidth: "90%" }}>
-        <div style={{ color: "#f5e6d3", fontSize: 19, lineHeight: 1.6, fontWeight: 500, marginBottom: 16, fontStyle: "italic" }}>"{quote.text}"</div>
-        <div style={{ color: "#ff9933", fontSize: 13, fontWeight: 600 }}>— {quote.ref}</div>
+        <div style={{ color: "#f5e6d3", fontSize: 19, lineHeight: 1.6, fontWeight: 500, marginBottom: 16, fontStyle: "italic", fontFamily: fontDisplay }}>"{quote.text}"</div>
+        <div style={{ color: accent, fontSize: 13, fontWeight: 600, fontFamily: fontBody }}>— {quote.ref}</div>
       </div>
       <div style={{ alignSelf: "center", textAlign: "center", width: "100%" }}>
-        <div style={{ color: "#ff9933", fontSize: 16, fontWeight: 700, marginBottom: 14 }}>All Glories to Srila Prabhupada</div>
+        <div style={{ color: accent, fontSize: 16, fontWeight: 700, marginBottom: 14, fontFamily: fontDisplay }}>All Glories to Srila Prabhupada</div>
         <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
           {QUOTES.map((_, k) => (
-            <span key={k} style={{ width: k === i ? 24 : 8, height: 8, borderRadius: 4, background: k === i ? "#ff9933" : "rgba(255,255,255,.2)", transition: "all 0.3s" }} />
+            <span key={k} style={{ width: k === i ? 24 : 8, height: 8, borderRadius: 4, background: k === i ? accent : "rgba(255,255,255,.2)", transition: "all 0.3s" }} />
           ))}
         </div>
-        <div style={{ color: "rgba(255,255,255,.4)", fontSize: 12, marginTop: 14, marginBottom: 16 }}>👈 Swipe to browse quotes 👉</div>
-        <button onClick={skip} style={{ background: "#ff9933", color: "#1a0e05", border: "none", padding: "14px 32px", borderRadius: 10, fontSize: 16, fontWeight: 700, cursor: "pointer", boxShadow: "0 4px 14px rgba(0,0,0,.35)" }}>Continue to App →</button>
+        <div style={{ color: "rgba(255,255,255,.4)", fontSize: 12, marginTop: 14, marginBottom: 16 }}>Swipe to browse quotes</div>
+        <button className="pw-tap" onClick={skip} style={{ background: accentGradient, color: "#1a0e05", border: "none", padding: "15px 32px", borderRadius: 14, fontSize: 16, fontWeight: 700, cursor: "pointer", boxShadow: "0 8px 20px rgba(255,153,51,.3)", minHeight: 48 }}>Continue to App →</button>
       </div>
     </div>
   );
@@ -116,11 +116,14 @@ function Login() {
     } catch (e) { alert("Login failed: " + e.message); }
   };
   return (
-    <div style={{ minHeight: "100dvh", background: "#120a04", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24 }}>
-      <img src="/p13.jpg" alt="" style={{ width: 140, height: 140, borderRadius: "50%", objectFit: "cover", border: "3px solid #ff9933" }} />
-      <h1 style={{ color: "#ff9933", marginTop: 24, fontSize: 28, textAlign: "center" }}>Sadhna OS</h1>
-      <p style={{ color: "#bbb", marginTop: 8, textAlign: "center", fontSize: 15 }}>All Glories to Srila Prabhupada</p>
-      <button onClick={go} style={{ marginTop: 36, background: "#fff", color: "#333", border: "none", padding: "16px 34px", borderRadius: 12, fontSize: 17, fontWeight: 700, cursor: "pointer", boxShadow: "0 4px 14px rgba(0,0,0,.35)" }}>Sign in with Google</button>
+    <div style={{ minHeight: "100dvh", background: "linear-gradient(160deg, #150c05 0%, #1f1309 60%, #2a1810 100%)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24 }}>
+      <img src="/p13.jpg" alt="" style={{ width: 140, height: 140, borderRadius: "50%", objectFit: "cover", border: `3px solid ${accent}`, boxShadow: "0 0 0 6px rgba(255,153,51,.12)" }} />
+      <h1 style={{ color: accent, marginTop: 24, fontSize: 32, textAlign: "center", fontFamily: fontDisplay, fontWeight: 700 }}>Sadhna OS</h1>
+      <p style={{ color: "#c9bda3", marginTop: 8, textAlign: "center", fontSize: 15, fontFamily: fontBody }}>All Glories to Srila Prabhupada</p>
+      <button className="pw-tap" onClick={go} style={{ marginTop: 36, background: "#fff", color: "#2a2118", border: "none", padding: "16px 34px", borderRadius: 14, fontSize: 16, fontWeight: 700, cursor: "pointer", boxShadow: "0 8px 24px rgba(0,0,0,.35)", display: "flex", alignItems: "center", gap: 10, fontFamily: fontBody }}>
+        <svg width="20" height="20" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.99.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+        Sign in with Google
+      </button>
     </div>
   );
 }
@@ -129,7 +132,7 @@ function Login() {
    Skeleton loading (auth check in progress)
 ─────────────────────────────────────────────── */
 function SkeletonScreen({ C }) {
-  const block = { background: C.card, borderRadius: 14, margin: "12px 14px", border: `1px solid ${C.line}` };
+  const block = { background: C.card, borderRadius: 18, margin: "12px 14px", border: `1px solid ${C.line}` };
   return (
     <div style={{ background: C.bg, minHeight: "100dvh", paddingTop: 20 }}>
       <style>{`
@@ -168,13 +171,12 @@ export default function App() {
   const [confirmState, setConfirmState] = useState(null); // { message, onConfirm }
   const askConfirm = (message, onConfirm) => setConfirmState({ message, onConfirm });
 
-  // running timer state (persisted to localStorage so it survives reload/close)
-  const [runs, setRuns] = useState(() => {
-    try { return JSON.parse(localStorage.getItem(RUN_KEY) || "{}"); } catch { return {}; }
-  });
   const notifiedRef = useRef({});
 
   const today = dateKey();
+  // running timer state — lives in `data.runs`, persisted through the same Supabase
+  // save/load pipeline as everything else, so it survives reload and syncs across devices
+  const runs = data.runs || {};
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => {
@@ -213,11 +215,6 @@ export default function App() {
     return () => clearInterval(t);
   }, []);
 
-  // persist running timer state
-  useEffect(() => {
-    try { localStorage.setItem(RUN_KEY, JSON.stringify(runs)); } catch { /* ignore */ }
-  }, [runs]);
-
   // countdown completion detection
   useEffect(() => {
     (data.timers?.length ? data.timers : DEFAULT_TIMERS).forEach((t) => {
@@ -228,9 +225,10 @@ export default function App() {
       if (elapsed >= t.duration && !notifiedRef.current[t.id]) {
         notifiedRef.current[t.id] = true;
         notify(`${t.name} complete`, "Hare Krishna 🙏 Your timer finished.");
-        setRuns((s) => ({ ...s, [t.id]: { accumulated: t.duration, running: false, startedAt: null } }));
+        save({ runs: { ...runs, [t.id]: { accumulated: t.duration, running: false, startedAt: null } } });
       }
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- save is stable for the lifetime of a user session
   }, [now, runs, data.timers]);
 
   // goal reminders (best-effort while app open)
@@ -281,6 +279,7 @@ export default function App() {
       photo: user.photoURL || "",
       log: next.log, custom: next.custom, notes: next.notes, settings: next.settings,
       timers: next.timers, goals: next.goals, widgets: next.widgets, templates: next.templates,
+      runs: next.runs,
       updated_at: new Date().toISOString(),
     });
   };
@@ -324,19 +323,29 @@ export default function App() {
     return Math.floor((r.accumulated || 0) + (r.running && r.startedAt ? (now - r.startedAt) / 1000 : 0));
   }
   function toggleRun(id) {
-    setRuns((s) => {
-      const r = s[id] || { accumulated: 0, running: false, startedAt: null };
-      if (r.running) {
-        const acc = (r.accumulated || 0) + (r.startedAt ? (Date.now() - r.startedAt) / 1000 : 0);
-        return { ...s, [id]: { accumulated: acc, running: false, startedAt: null } };
+    const r = runs[id] || { accumulated: 0, running: false, startedAt: null };
+    let next;
+    if (r.running) {
+      const acc = (r.accumulated || 0) + (r.startedAt ? (Date.now() - r.startedAt) / 1000 : 0);
+      next = { ...runs, [id]: { accumulated: acc, running: false, startedAt: null } };
+    } else {
+      // only one timer may run at a time — pause whichever other timer is active
+      const startedAt = Date.now();
+      next = { ...runs };
+      for (const key of Object.keys(next)) {
+        if (key !== id && next[key]?.running) {
+          const otherAcc = (next[key].accumulated || 0) + (next[key].startedAt ? (startedAt - next[key].startedAt) / 1000 : 0);
+          next[key] = { accumulated: otherAcc, running: false, startedAt: null };
+        }
       }
       notifiedRef.current[id] = false;
-      return { ...s, [id]: { accumulated: r.accumulated || 0, running: true, startedAt: Date.now() } };
-    });
+      next[id] = { accumulated: r.accumulated || 0, running: true, startedAt };
+    }
+    save({ runs: next });
   }
   function resetRun(id) {
     notifiedRef.current[id] = false;
-    setRuns((s) => ({ ...s, [id]: { accumulated: 0, running: false, startedAt: null } }));
+    save({ runs: { ...runs, [id]: { accumulated: 0, running: false, startedAt: null } } });
   }
 
   function activeTemplateText() {
@@ -363,13 +372,14 @@ export default function App() {
   const C = getPalette(dark);
 
   const S = {
-    page: { background: C.bg, minHeight: "100dvh", color: C.text, fontFamily: "system-ui, -apple-system, sans-serif", paddingBottom: 92, touchAction: "pan-x pan-y", maxWidth: 480, margin: "0 auto" },
-    head: { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 14px", borderBottom: `1px solid ${C.line}`, position: "sticky", top: 0, background: C.bg, zIndex: 20 },
-    row: { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 0", borderBottom: `1px solid ${C.line}` },
-    chk: (on) => ({ width: 30, height: 30, borderRadius: 8, border: `2px solid ${on ? accent : C.sub}`, background: on ? accent : "transparent", color: "#1a0e05", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", fontWeight: 800, fontSize: 18, flexShrink: 0 }),
-    input: { background: C.bg, color: C.text, border: `1px solid ${C.line}`, borderRadius: 10, padding: "12px 12px", fontSize: 15, width: "100%", minHeight: 44, boxSizing: "border-box" },
-    tabs: { position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 480, display: "flex", background: C.card, borderTop: `1px solid ${C.line}`, paddingTop: 8, paddingBottom: "calc(8px + env(safe-area-inset-bottom))", zIndex: 20 },
-    tab: (a) => ({ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 3, padding: "6px 4px", fontSize: 11, fontWeight: a ? 700 : 500, color: a ? accent : C.sub, cursor: "pointer" }),
+    page: { background: C.bg, minHeight: "100dvh", color: C.text, fontFamily: fontBody, paddingBottom: 96, touchAction: "pan-x pan-y", maxWidth: 480, margin: "0 auto" },
+    head: { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 14px", borderBottom: `1px solid ${C.line}`, position: "sticky", top: 0, background: C.bg, zIndex: 20, boxShadow: dark ? "0 4px 16px rgba(0,0,0,.25)" : "0 4px 16px rgba(120,72,20,.06)" },
+    row: { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "13px 0", borderBottom: `1px solid ${C.line}`, gap: 12 },
+    chk: (on) => ({ width: 30, height: 30, borderRadius: 10, border: `2px solid ${on ? "transparent" : C.sub}`, background: on ? accentGradient : "transparent", color: "#1a0e05", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", fontWeight: 800, fontSize: 18, flexShrink: 0, transition: "transform .15s ease, background .15s ease" }),
+    input: { background: C.bg, color: C.text, border: `1px solid ${C.line}`, borderRadius: 12, padding: "12px 12px", fontSize: 15, width: "100%", minHeight: 44, boxSizing: "border-box", transition: "border-color .15s ease" },
+    tabs: { position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 480, display: "flex", background: C.card, borderTop: `1px solid ${C.line}`, paddingTop: 8, paddingBottom: "calc(8px + env(safe-area-inset-bottom))", zIndex: 20, boxShadow: dark ? "0 -6px 20px rgba(0,0,0,.3)" : "0 -6px 20px rgba(120,72,20,.08)" },
+    tab: (a) => ({ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 3, padding: "2px 4px 4px", fontSize: 11, fontWeight: a ? 700 : 500, color: a ? accent : C.sub, cursor: "pointer", background: "none", border: "none" }),
+    tabIcon: (a) => ({ display: "flex", alignItems: "center", justifyContent: "center", width: 46, height: 30, borderRadius: 999, background: a ? accentGradient : "transparent", transition: "background .2s ease" }),
     sectionTitle: { fontWeight: 700, fontSize: 16, marginBottom: 12 },
   };
 
@@ -406,7 +416,7 @@ export default function App() {
   const headerTitle = { insights: tr("insights", lang), notes: tr("notes", lang), ai: tr("ai", lang), notifications: tr("notifications", lang) }[screen];
 
   return (
-    <ThemeContext.Provider value={{ C, accent, green, warn, danger }}>
+    <ThemeContext.Provider value={{ C, accent, accentDeep, accentGradient, green, warn, danger }}>
       <AppContext.Provider value={appContextValue}>
         <div style={{ background: C.bg, minHeight: "100dvh" }}>
           <div style={S.page}>
@@ -414,12 +424,17 @@ export default function App() {
             <Drawer />
             {screens[screen]}
             <div style={S.tabs}>
-              {navItems.map((n) => (
-                <button key={n.id} onClick={() => setScreen(n.id)} style={S.tab(screen === n.id)}>
-                  <Icon name={n.icon} size={22} color={screen === n.id ? accent : C.sub} w={screen === n.id ? 2.4 : 2} />
-                  {n.label}
-                </button>
-              ))}
+              {navItems.map((n) => {
+                const active = screen === n.id;
+                return (
+                  <button key={n.id} className="pw-tap" onClick={() => setScreen(n.id)} style={S.tab(active)}>
+                    <span style={S.tabIcon(active)}>
+                      <Icon name={n.icon} size={20} color={active ? "#1a0e05" : C.sub} w={active ? 2.4 : 2} />
+                    </span>
+                    {n.label}
+                  </button>
+                );
+              })}
             </div>
             <Toast message={toast} />
             <ConfirmSheet

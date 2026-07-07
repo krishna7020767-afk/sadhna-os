@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useApp } from "../appContext";
-import { useTheme } from "../theme";
+import { useTheme, fontDisplay } from "../theme";
 import { tr, DEFAULT_TIMERS } from "../lib/constants";
 import { fmtHMS } from "../lib/helpers";
 import { Card } from "../components/Card";
@@ -30,7 +30,7 @@ export function Timers() {
   return (
     <div style={{ padding: "6px 0 8px" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 14px" }}>
-        <div style={{ fontSize: 20, fontWeight: 800 }}>{tr("timers", lang)}</div>
+        <div style={{ fontSize: 22, fontWeight: 700, fontFamily: fontDisplay }}>{tr("timers", lang)}</div>
         <Button onClick={() => setShow(!show)} style={{ width: "auto", padding: "0 16px", minHeight: 42 }}><Icon name="plus" size={18} /> {lang === "hi" ? "नया" : "Add"}</Button>
       </div>
 
@@ -72,10 +72,10 @@ export function Timers() {
             <div style={{ display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 16 }}>
               {isCd ? (
                 <Ring pct={p} size={150} stroke={11} color={done ? green : accent} track={C.line}>
-                  <span style={{ fontSize: 34, color: done ? green : accent }}>{fmtHMS(remaining)}</span>
+                  <span style={{ fontSize: 32, color: done ? green : accent, fontFamily: fontDisplay, fontVariantNumeric: "tabular-nums" }}>{fmtHMS(remaining)}</span>
                 </Ring>
               ) : (
-                <div style={{ fontSize: 52, fontWeight: 800, color: accent, fontVariantNumeric: "tabular-nums" }}>{fmtHMS(el)}</div>
+                <div style={{ fontSize: 52, fontWeight: 700, color: accent, fontVariantNumeric: "tabular-nums", fontFamily: fontDisplay }}>{fmtHMS(el)}</div>
               )}
             </div>
             <div style={{ display: "flex", gap: 10 }}>

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useApp } from "../appContext";
-import { useTheme } from "../theme";
+import { useTheme, fontDisplay } from "../theme";
 import { tr, METRICS } from "../lib/constants";
 import { dayMetric, rangeMetric, streakMetric } from "../lib/metrics";
 import { Card } from "../components/Card";
@@ -33,7 +33,7 @@ export function Goals() {
   return (
     <div style={{ padding: "6px 0 8px" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 14px" }}>
-        <div style={{ fontSize: 20, fontWeight: 800 }}>{tr("goals", lang)}</div>
+        <div style={{ fontSize: 22, fontWeight: 700, fontFamily: fontDisplay }}>{tr("goals", lang)}</div>
         <Button onClick={() => setShow(!show)} style={{ width: "auto", padding: "0 16px", minHeight: 42 }}><Icon name="plus" size={18} /> {lang === "hi" ? "नया" : "Add"}</Button>
       </div>
 
@@ -77,7 +77,7 @@ export function Goals() {
           <Card key={g.id}>
             <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
               <Ring pct={p} size={78} stroke={9} color={p >= 100 ? green : accent} track={C.line}>
-                <span style={{ fontSize: 18, color: p >= 100 ? green : accent }}>{p}%</span>
+                <span style={{ fontSize: 18, color: p >= 100 ? green : accent, fontFamily: fontDisplay }}>{p}%</span>
               </Ring>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useApp } from "../appContext";
-import { useTheme } from "../theme";
+import { useTheme, fontDisplay } from "../theme";
 import { tr } from "../lib/constants";
 import { notify } from "../lib/helpers";
 import { Card } from "../components/Card";
@@ -20,7 +20,7 @@ export function Notifications() {
   const s = data.settings || {};
   return (
     <div style={{ padding: "6px 0 8px" }}>
-      <div style={{ fontSize: 20, fontWeight: 800, padding: "8px 14px" }}>{tr("notifications", lang)}</div>
+      <div style={{ fontSize: 22, fontWeight: 700, fontFamily: fontDisplay, padding: "8px 14px" }}>{tr("notifications", lang)}</div>
       <Card>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div>

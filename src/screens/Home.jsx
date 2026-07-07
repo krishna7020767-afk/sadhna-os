@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useApp } from "../appContext";
-import { useTheme } from "../theme";
+import { useTheme, fontDisplay } from "../theme";
 import { FIXED, WIDGET_META, BOOL_IDS, tr } from "../lib/constants";
 import { dateKey, addDays } from "../lib/helpers";
 import { Card } from "../components/Card";
@@ -25,7 +25,7 @@ function AddCustom() {
 
 function Widget({ id }) {
   const { S, lang, dayLog, setField, data, timers, runs, toggleRun, setScreen } = useApp();
-  const { C, accent, green, warn } = useTheme();
+  const { C, accent, accentGradient, green, warn } = useTheme();
   const today = dateKey();
   switch (id) {
     case "progress": {
@@ -35,7 +35,7 @@ function Widget({ id }) {
       return (
         <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
           <Ring pct={pct} size={84} stroke={9} color={accent} track={C.line}>
-            <span style={{ fontSize: 22, color: accent }}>{pct}%</span>
+            <span style={{ fontSize: 22, color: accent, fontFamily: fontDisplay }}>{pct}%</span>
           </Ring>
           <div>
             <div style={{ color: C.sub, fontSize: 13 }}>{tr("progress", lang)}</div>
@@ -51,8 +51,8 @@ function Widget({ id }) {
         <div>
           <div style={S.sectionTitle}>{WIDGET_META.japa[lang]}</div>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <div style={{ fontSize: 30, fontWeight: 800, color: accent, fontVariantNumeric: "tabular-nums" }}>{on ? 16 : 0}<span style={{ fontSize: 15, color: C.sub, fontWeight: 600 }}> / 16 {lang === "hi" ? "माला" : "rounds"}</span></div>
-            <div style={S.chk(on)} onClick={() => setField("chanting16", !on)}>{on ? "✓" : ""}</div>
+            <div style={{ fontSize: 32, fontWeight: 800, color: accent, fontVariantNumeric: "tabular-nums", fontFamily: fontDisplay }}>{on ? 16 : 0}<span style={{ fontSize: 15, color: C.sub, fontWeight: 600 }}> / 16 {lang === "hi" ? "माला" : "rounds"}</span></div>
+            <div className="pw-tap" style={S.chk(on)} onClick={() => setField("chanting16", !on)}>{on ? "✓" : ""}</div>
           </div>
         </div>
       );
@@ -84,7 +84,7 @@ function Widget({ id }) {
                 <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 5 }}>
                   <span>{g.label}</span><span style={{ color: C.sub }}>{v}/{g.daily}</span>
                 </div>
-                <ProgressBar pct={p} color={p >= 100 ? green : accent} />
+                <ProgressBar pct={p} color={p >= 100 ? green : accentGradient} />
               </div>
             );
           })}
@@ -120,8 +120,8 @@ function Widget({ id }) {
           <div style={S.sectionTitle}>{WIDGET_META.activity[lang]}</div>
           <div style={{ display: "flex", alignItems: "flex-end", gap: 8, height: 90 }}>
             {days.map((x) => (
-              <div key={x.k} style={{ flex: 1, textAlign: "center" }}>
-                <div style={{ height: Math.max(4, x.pct) + "%", background: accent, borderRadius: 5, transition: "height .3s" }} />
+              <div key={x.k} style={{ flex: 1, textAlign: "center", display: "flex", flexDirection: "column", justifyContent: "flex-end", height: "100%" }}>
+                <div style={{ height: Math.max(4, x.pct) + "%", background: accentGradient, borderRadius: 6, transition: "height .3s ease" }} />
                 <div style={{ fontSize: 10, color: C.sub, marginTop: 6 }}>{x.k.slice(8)}</div>
               </div>
             ))}
@@ -147,7 +147,7 @@ function Widget({ id }) {
               const has = BOOL_IDS.some((id) => lg[id]);
               const isToday = k === today;
               return (
-                <div key={i} style={{ textAlign: "center", fontSize: 12, padding: "6px 0", borderRadius: 8, background: isToday ? accent : has ? C.elev : "transparent", color: isToday ? "#1a0e05" : C.text, fontWeight: isToday ? 800 : 500, border: has && !isToday ? `1px solid ${accent}` : "1px solid transparent" }}>{n}</div>
+                <div key={i} style={{ textAlign: "center", fontSize: 12, padding: "6px 0", borderRadius: 8, background: isToday ? accentGradient : has ? C.elev : "transparent", color: isToday ? "#1a0e05" : C.text, fontWeight: isToday ? 800 : 500, border: has && !isToday ? `1px solid ${accent}` : "1px solid transparent" }}>{n}</div>
               );
             })}
           </div>
@@ -172,7 +172,7 @@ export function Home() {
   return (
     <>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 14px 0" }}>
-        <div style={{ fontSize: 20, fontWeight: 800 }}>{lang === "hi" ? "डैशबोर्ड" : "Dashboard"}</div>
+        <div style={{ fontSize: 22, fontWeight: 700, fontFamily: fontDisplay }}>{lang === "hi" ? "डैशबोर्ड" : "Dashboard"}</div>
         <Button ghost onClick={() => setEditingHome(!editingHome)} style={{ minHeight: 40, padding: "9px 14px", width: "auto", color: editingHome ? accent : undefined }}>
           {editingHome ? tr("doneEditing", lang) : tr("customize", lang)}
         </Button>
@@ -208,7 +208,7 @@ export function Home() {
           <div key={f.id} style={S.row}>
             <span style={{ fontSize: 15 }}>{lang === "hi" ? f.hi : f.en}</span>
             {f.type === "bool" ? (
-              <div style={S.chk(!!dayLog[f.id])} onClick={() => setField(f.id, !dayLog[f.id])}>{dayLog[f.id] ? "✓" : ""}</div>
+              <div className="pw-tap" style={S.chk(!!dayLog[f.id])} onClick={() => setField(f.id, !dayLog[f.id])}>{dayLog[f.id] ? "✓" : ""}</div>
             ) : f.type === "time" ? (
               <input type="time" value={dayLog[f.id] || ""} onChange={(e) => setField(f.id, e.target.value)} onClick={(e) => e.target.showPicker?.()} style={{ ...S.input, width: "auto", padding: "10px 12px" }} />
             ) : (
@@ -219,7 +219,7 @@ export function Home() {
         {customToday.map((c, idx) => (
           <div key={idx} style={S.row}>
             <span style={{ fontSize: 15 }}>{c.label}</span>
-            <div style={S.chk(c.done)} onClick={() => { const a = [...customToday]; a[idx] = { ...c, done: !c.done }; setCustom(a); }}>{c.done ? "✓" : ""}</div>
+            <div className="pw-tap" style={S.chk(c.done)} onClick={() => { const a = [...customToday]; a[idx] = { ...c, done: !c.done }; setCustom(a); }}>{c.done ? "✓" : ""}</div>
           </div>
         ))}
         <AddCustom />

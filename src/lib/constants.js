@@ -60,7 +60,7 @@ export const QUOTES = [
   { text: "The spiritual master is the transparent via medium to Krishna. If you keep the via medium transparent, then you'll be able to see Krishna.", ref: "Srila Prabhupada", img: "/p13.jpg" },
 ];
 
-export const EMPTY = { log: {}, custom: {}, notes: [], settings: {}, timers: [], goals: [], widgets: [], templates: [] };
+export const EMPTY = { log: {}, custom: {}, notes: [], settings: {}, timers: [], goals: [], widgets: [], templates: [], runs: {} };
 export const DEFAULT_TIMERS = [
   { id: "japa", name: "Japa", mode: "stopwatch", duration: 0 },
   { id: "reading", name: "Reading", mode: "stopwatch", duration: 0 },
@@ -83,4 +83,3 @@ export const DEFAULT_TEMPLATE = {
   name: "Standard",
   text: "Hare Krishna Prabhu 🙏\nDandwat Pranam\n\nSadhna Report — {date}\n\nRounds: {rounds}\nReading: {reading} min\nHearing: {hearing} min\nMorning program: {mangala}\n\nAll glories to Srila Prabhupada 🙏",
 };
-export const RUN_KEY = "sadhna_runs_v1";
