@@ -30,3 +30,13 @@ export function fmtHMS(totalSec) {
   const p = (n) => String(n).padStart(2, "0");
   return h > 0 ? `${p(h)}:${p(m)}:${p(ss)}` : `${p(m)}:${p(ss)}`;
 }
+
+/* Notification helper (best-effort; real push needs a server) */
+// ponytail: local Notification API only — fires while a tab is open. Add web-push + a server cron for true background alerts.
+export function notify(title, body) {
+  try {
+    if ("Notification" in window && Notification.permission === "granted") {
+      new Notification(title, { body, icon: "/p1.jpg" });
+    }
+  } catch { /* ignore */ }
+}

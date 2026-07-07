@@ -1,91 +1,27 @@
 import { useEffect, useState, useRef } from "react";
 import { supabase } from "./supabaseClient";
-import { mapUser, dateKey, addDays, prettyDate, fmtHMS } from "./lib/helpers";
-import { accent, green, danger, warn, getPalette, ThemeContext } from "./theme";
-import { Card } from "./components/Card";
-import { Button } from "./components/Button";
-import { ProgressBar } from "./components/ProgressBar";
-import { IconButton } from "./components/IconButton";
-import { Chip } from "./components/Chip";
-import { Toggle } from "./components/Toggle";
-import { StatTile } from "./components/StatTile";
-import { Section } from "./components/Section";
-import { EmptyState } from "./components/EmptyState";
+import { mapUser, dateKey, prettyDate, notify } from "./lib/helpers";
+import { getPalette, ThemeContext, accent, green, warn, danger } from "./theme";
+import { AppContext } from "./appContext";
+import {
+  EMPTY, DEFAULT_TIMERS, DEFAULT_WIDGETS, DEFAULT_TEMPLATE, RUN_KEY, tr,
+} from "./lib/constants";
+import { dayMetric } from "./lib/metrics";
 import { Toast } from "./components/Toast";
 import { ConfirmSheet } from "./components/ConfirmSheet";
+import { Header } from "./components/Header";
+import { Drawer } from "./components/Drawer";
+import { Icon } from "./components/Icon";
+import { Home } from "./screens/Home";
+import { Timers } from "./screens/Timers";
+import { Goals } from "./screens/Goals";
+import { Reports } from "./screens/Reports";
+import { Notifications } from "./screens/Notifications";
+import { Insights } from "./screens/Insights";
+import { AI } from "./screens/AI";
+import { Notes } from "./screens/Notes";
 
-/* Permanent / fixed sadhna items */
-const FIXED = [
-  { id: "mangalAarti", en: "Mangal Aarti", hi: "मंगल आरती", type: "time" },
-  { id: "wakeTime", en: "Wake-up / Morning walk", hi: "उठने / मॉर्निंग वॉक", type: "time" },
-  { id: "chanting16", en: "Chanting — 16 rounds", hi: "जप — 16 माला", type: "bool" },
-  { id: "chantingFinishTime", en: "Chanting finished at", hi: "जप समाप्त समय", type: "time" },
-  { id: "reading", en: "Reading (minutes)", hi: "पठन (मिनट)", type: "number" },
-  { id: "hearingSB", en: "SB class heard", hi: "भागवतम् क्लास सुनी", type: "bool" },
-  { id: "hearingExtra", en: "Extra lecture heard", hi: "अतिरिक्त प्रवचन सुना", type: "bool" },
-  { id: "hearingExtraDuration", en: "Extra lecture duration (min)", hi: "अतिरिक्त प्रवचन अवधि (मिनट)", type: "number", show: (log) => log.hearingExtra },
-  { id: "exercise", en: "Exercise", hi: "व्यायाम", type: "bool" },
-  { id: "exerciseDuration", en: "Exercise duration (min)", hi: "व्यायाम अवधि (मिनट)", type: "number", show: (log) => log.exercise },
-];
-const BOOL_IDS = FIXED.filter((f) => f.type === "bool").map((f) => f.id);
-
-/* Goal metrics — derived from the daily log (no schema change) */
-const METRICS = {
-  rounds: { en: "Chanting rounds", hi: "जप माला", unit: "", target: 16 },
-  reading: { en: "Reading", hi: "पठन", unit: "min", target: 30 },
-  hearing: { en: "Hearing", hi: "श्रवण", unit: "min", target: 30 },
-  mangala: { en: "Morning program", hi: "मंगल आरती", unit: "", target: 1 },
-  sadhna: { en: "Sadhna items done", hi: "साधना कार्य", unit: "", target: BOOL_IDS.length },
-};
-function dayMetric(data, key, k) {
-  const lg = data.log?.[k] || {};
-  const cu = data.custom?.[k] || [];
-  switch (key) {
-    case "rounds": return lg.chanting16 ? 16 : 0;
-    case "reading": return Number(lg.reading) || 0;
-    case "hearing": return Number(lg.hearingExtraDuration) || 0;
-    case "mangala": return lg.mangalAarti ? 1 : 0;
-    case "sadhna": return BOOL_IDS.filter((id) => lg[id]).length + cu.filter((c) => c.done).length;
-    default: return 0;
-  }
-}
-function rangeMetric(data, key, days) {
-  let sum = 0;
-  for (let i = 0; i < days; i++) sum += dayMetric(data, key, dateKey(addDays(new Date(), -i)));
-  return sum;
-}
-function streakMetric(data, key, target) {
-  let n = 0;
-  for (let i = 0; i < 400; i++) {
-    if (dayMetric(data, key, dateKey(addDays(new Date(), -i))) >= target) n++;
-    else if (i === 0) continue; // today may not be done yet — don't break the streak on day 0
-    else break;
-  }
-  return n;
-}
-
-/* Tiny translation map */
-const T = {
-  home: { en: "Home", hi: "होम" },
-  timers: { en: "Timers", hi: "टाइमर" },
-  goals: { en: "Goals", hi: "लक्ष्य" },
-  reports: { en: "Reports", hi: "रिपोर्ट" },
-  insights: { en: "Insights", hi: "विश्लेषण" },
-  notes: { en: "Notes", hi: "नोट्स" },
-  ai: { en: "Ask AI", hi: "AI से पूछें" },
-  notifications: { en: "Notifications", hi: "सूचनाएं" },
-  todaySadhna: { en: "Today's Sadhna", hi: "आज की साधना" },
-  progress: { en: "Today's Progress", hi: "आज की प्रगति" },
-  done: { en: "Done", hi: "पूर्ण" },
-  pending: { en: "Pending", hi: "बाकी" },
-  logout: { en: "Logout", hi: "लॉगआउट" },
-  customize: { en: "Customize", hi: "अनुकूलित करें" },
-  doneEditing: { en: "Done", hi: "पूर्ण" },
-  addWidget: { en: "Add widget", hi: "विजेट जोड़ें" },
-};
-const tr = (k, lang) => (T[k] ? T[k][lang] : k);
-
-/* Quote + Photo pairs */
+/* Quote + Photo pairs for the splash screen */
 const QUOTES = [
   { text: "So far as controlling 'kama' or lust, best thing is don't eat any highly spiced food stuffs and always think of Krishna. Chant regularly.", ref: "Letter to Niranjana - Calcutta 27 May, 1971", img: "/p1.jpg" },
   { text: "If you think of Krishna twenty-four hours, Krishna will think of you twenty-six hours. (laughter) Krishna is so kind. If you do some service for Krishna, Krishna will reward you hundred times.", ref: "Srila Prabhupada Lecture SB 01.14.44 - New York", img: "/p2.jpg" },
@@ -101,67 +37,6 @@ const QUOTES = [
   { text: "Chanting Hare Krishna is our life and soul. Without chanting, we cannot live. Just like a fish cannot live without water.", ref: "Srila Prabhupada", img: "/p12.jpg" },
   { text: "The spiritual master is the transparent via medium to Krishna. If you keep the via medium transparent, then you'll be able to see Krishna.", ref: "Srila Prabhupada", img: "/p13.jpg" },
 ];
-
-/* ──────────────────────────────────────────────
-   SVG icon set (structural nav — no emoji)
-─────────────────────────────────────────────── */
-const ICONS = {
-  home: "M3 11l9-8 9 8M5 10v10a1 1 0 001 1h12a1 1 0 001-1V10",
-  timer: "M12 22a9 9 0 100-18 9 9 0 000 18M12 8v5l3 2M9 2h6",
-  goal: "M12 22a10 10 0 100-20 10 10 0 000 20M12 17a5 5 0 100-10 5 5 0 000 10M12 12h.01",
-  report: "M4 4h16v12H5.2L4 17.2zM8 9h8M8 12.5h5",
-  menu: "M4 6h16M4 12h16M4 18h16",
-  plus: "M12 5v14M5 12h14",
-  x: "M6 6l12 12M18 6L6 18",
-  bell: "M6 8a6 6 0 1112 0c0 7 3 7 3 7H3s3 0 3-7M9.5 21a2.5 2.5 0 005 0",
-  share: "M4 12v7a1 1 0 001 1h14a1 1 0 001-1v-7M16 6l-4-4-4 4M12 2v13",
-  up: "M6 15l6-6 6 6",
-  down: "M6 9l6 6 6-6",
-  chart: "M4 20V4M4 20h16M8 16v-5M13 16V8M18 16v-9",
-  moon: "M21 12.8A9 9 0 1111.2 3 7 7 0 0021 12.8z",
-  sun: "M12 4V2M12 22v-2M4 12H2M22 12h-2M5.6 5.6L4.2 4.2M19.8 19.8l-1.4-1.4M18.4 5.6l1.4-1.4M4.2 19.8l1.4-1.4M12 8a4 4 0 100 8 4 4 0 000-8z",
-  note: "M5 3h11l3 3v15H5zM9 8h6M9 12h6M9 16h4",
-  ai: "M12 3a4 4 0 014 4v1a4 4 0 010 8v1a4 4 0 01-8 0v-1a4 4 0 010-8V7a4 4 0 014-4zM9 9h.01M15 9h.01",
-  logout: "M9 21H5a1 1 0 01-1-1V4a1 1 0 011-1h4M16 17l5-5-5-5M21 12H9",
-  play: "M7 4l13 8-13 8z",
-  pause: "M7 5h4v14H7zM13 5h4v14h-4z",
-  reset: "M3 12a9 9 0 109-9 9 9 0 00-7 3.5M3 3v4h4",
-  trash: "M4 7h16M9 7V4h6v3M6 7l1 14h10l1-14",
-  check: "M4 12l5 5L20 6",
-};
-function Icon({ name, size = 22, color = "currentColor", w = 2 }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={w} strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
-      <path d={ICONS[name] || ""} />
-    </svg>
-  );
-}
-function Ring({ pct, size = 68, stroke = 7, color, track, children }) {
-  const r = (size - stroke) / 2;
-  const c = 2 * Math.PI * r;
-  const off = c * (1 - Math.min(1, Math.max(0, pct / 100)));
-  return (
-    <div style={{ position: "relative", width: size, height: size }}>
-      <svg width={size} height={size} style={{ transform: "rotate(-90deg)" }}>
-        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={track} strokeWidth={stroke} />
-        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={color} strokeWidth={stroke} strokeLinecap="round" strokeDasharray={c} strokeDashoffset={off} style={{ transition: "stroke-dashoffset .5s ease" }} />
-      </svg>
-      <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontVariantNumeric: "tabular-nums" }}>
-        {children}
-      </div>
-    </div>
-  );
-}
-
-/* Notification helper (best-effort; real push needs a server) */
-// ponytail: local Notification API only — fires while a tab is open. Add web-push + a server cron for true background alerts.
-function notify(title, body) {
-  try {
-    if ("Notification" in window && Notification.permission === "granted") {
-      new Notification(title, { body, icon: "/p1.jpg" });
-    }
-  } catch { /* ignore */ }
-}
 
 /* ──────────────────────────────────────────────
    Splash
@@ -269,31 +144,6 @@ function SkeletonScreen({ C }) {
   );
 }
 
-const EMPTY = { log: {}, custom: {}, notes: [], settings: {}, timers: [], goals: [], widgets: [], templates: [] };
-const DEFAULT_TIMERS = [
-  { id: "japa", name: "Japa", mode: "stopwatch", duration: 0 },
-  { id: "reading", name: "Reading", mode: "stopwatch", duration: 0 },
-  { id: "hearing", name: "Hearing", mode: "stopwatch", duration: 0 },
-  { id: "kirtan", name: "Kirtan", mode: "stopwatch", duration: 0 },
-  { id: "mangala", name: "Mangala Arati", mode: "countdown", duration: 1800 },
-];
-const WIDGET_META = {
-  progress: { en: "Progress", hi: "प्रगति" },
-  japa: { en: "Today's Japa", hi: "आज का जप" },
-  reading: { en: "Reading", hi: "पठन" },
-  goals: { en: "Goals", hi: "लक्ष्य" },
-  quicktimer: { en: "Quick Timer", hi: "त्वरित टाइमर" },
-  activity: { en: "Recent Activity", hi: "हाल की गतिविधि" },
-  calendar: { en: "Calendar", hi: "कैलेंडर" },
-};
-const DEFAULT_WIDGETS = ["progress", "japa", "reading", "goals", "quicktimer"];
-const DEFAULT_TEMPLATE = {
-  id: "std",
-  name: "Standard",
-  text: "Hare Krishna Prabhu 🙏\nDandwat Pranam\n\nSadhna Report — {date}\n\nRounds: {rounds}\nReading: {reading} min\nHearing: {hearing} min\nMorning program: {mangala}\n\nAll glories to Srila Prabhupada 🙏",
-};
-const RUN_KEY = "sadhna_runs_v1";
-
 /* ──────────────────────────────────────────────
    Main App
 ─────────────────────────────────────────────── */
@@ -352,6 +202,7 @@ export default function App() {
 
   // load persisted theme/lang once data arrives
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- syncing local UI state from a remote row, not derivable from props
     if (data.settings?.dark !== undefined) setDark(!!data.settings.dark);
     if (data.settings?.lang) setLang(data.settings.lang);
   }, [data.settings?.dark, data.settings?.lang]);
@@ -463,10 +314,6 @@ export default function App() {
   const customToday = data.custom?.[today] || [];
   const setCustom = (arr) => save({ custom: { ...data.custom, [today]: arr } });
 
-  const doneCount = BOOL_IDS.filter((id) => dayLog[id]).length + customToday.filter((c) => c.done).length;
-  const totalCount = BOOL_IDS.length + customToday.length;
-  const pct = totalCount ? Math.round((doneCount / totalCount) * 100) : 0;
-
   const timers = data.timers?.length ? data.timers : DEFAULT_TIMERS;
   const widgets = data.widgets?.length ? data.widgets : DEFAULT_WIDGETS;
   const templates = data.templates?.length ? data.templates : [DEFAULT_TEMPLATE];
@@ -533,738 +380,22 @@ export default function App() {
   const toggleDark = () => { const v = !dark; setDark(v); saveSetting({ dark: v }); };
   const toggleLang = () => { const v = lang === "hi" ? "en" : "hi"; setLang(v); saveSetting({ lang: v }); };
 
-  const Header = ({ title }) => (
-    <div style={S.head}>
-      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        <IconButton aria-label="Menu" onClick={() => setDrawer(true)}><Icon name="menu" /></IconButton>
-        <div>
-          <div style={{ fontWeight: 700, fontSize: 15 }}>{title || `${lang === "hi" ? "हरे कृष्ण" : "Hare Krishna"}, ${user.displayName?.split(" ")[0] || ""}`}</div>
-          <div style={{ fontSize: 11, color: accent }}>All Glories to Srila Prabhupada</div>
-        </div>
-      </div>
-      <IconButton aria-label="Theme" onClick={toggleDark}><Icon name={dark ? "sun" : "moon"} /></IconButton>
-    </div>
-  );
-
-  /* ───────── Sidebar drawer ───────── */
-  const Drawer = () => {
-    if (!drawer) return null;
-    const go = (s) => { setScreen(s); setDrawer(false); };
-    const items = [
-      { s: "insights", icon: "chart", label: tr("insights", lang) },
-      { s: "goals", icon: "goal", label: tr("goals", lang) },
-      { s: "notes", icon: "note", label: tr("notes", lang) },
-      { s: "ai", icon: "ai", label: tr("ai", lang) },
-      { s: "notifications", icon: "bell", label: tr("notifications", lang) },
-    ];
-    return (
-      <div onClick={() => setDrawer(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.55)", zIndex: 60, display: "flex" }}>
-        <div onClick={(e) => e.stopPropagation()} style={{ width: 288, maxWidth: "84%", background: C.card, height: "100%", padding: 18, display: "flex", flexDirection: "column", borderRight: `1px solid ${C.line}`, animation: "slideIn .25s ease" }}>
-          <style>{`@keyframes slideIn{from{transform:translateX(-100%)}to{transform:translateX(0)}}`}</style>
-          <div style={{ display: "flex", alignItems: "center", gap: 12, paddingBottom: 16, borderBottom: `1px solid ${C.line}` }}>
-            {user.photoURL && <img src={user.photoURL} alt="" style={{ width: 44, height: 44, borderRadius: "50%" }} />}
-            <div style={{ minWidth: 0 }}>
-              <div style={{ fontWeight: 700, fontSize: 15, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{user.displayName}</div>
-              <div style={{ fontSize: 12, color: accent }}>Sadhna OS</div>
-            </div>
-          </div>
-          <div style={{ flex: 1, overflowY: "auto", paddingTop: 8 }}>
-            {items.map((it) => (
-              <button key={it.s} onClick={() => go(it.s)} style={{ display: "flex", alignItems: "center", gap: 14, width: "100%", background: "none", border: "none", color: C.text, padding: "14px 8px", fontSize: 15, fontWeight: 600, cursor: "pointer", textAlign: "left" }}>
-                <Icon name={it.icon} color={accent} /> {it.label}
-              </button>
-            ))}
-            <div style={{ borderTop: `1px solid ${C.line}`, margin: "8px 0", paddingTop: 12 }}>
-              <div style={{ fontSize: 12, color: C.sub, padding: "0 8px 8px" }}>{lang === "hi" ? "थीम" : "Theme"}</div>
-              <div style={{ display: "flex", gap: 8, padding: "0 8px" }}>
-                <Chip onClick={toggleDark} style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
-                  <Icon name={dark ? "sun" : "moon"} size={16} /> {dark ? "Light" : "Dark"}
-                </Chip>
-                <Chip onClick={toggleLang} style={{ flex: 1 }}>{lang === "hi" ? "English" : "हिंदी"}</Chip>
-              </div>
-            </div>
-            <button onClick={() => { navigator.share ? navigator.share({ title: "Sadhna OS", text: "Track your daily sadhna 🙏", url: window.location.origin }).catch(() => {}) : window.open("https://wa.me/?text=" + encodeURIComponent("Track your daily sadhna with Sadhna OS 🙏 " + window.location.origin), "_blank"); setDrawer(false); }} style={{ display: "flex", alignItems: "center", gap: 14, width: "100%", background: "none", border: "none", color: C.text, padding: "14px 8px", fontSize: 15, fontWeight: 600, cursor: "pointer", textAlign: "left" }}>
-              <Icon name="share" color={accent} /> {lang === "hi" ? "ऐप शेयर करें" : "Share App"}
-            </button>
-          </div>
-          <button onClick={() => { setDrawer(false); askConfirm(lang === "hi" ? "लॉगआउट करें?" : "Log out?", () => supabase.auth.signOut()); }} style={{ display: "flex", alignItems: "center", gap: 14, width: "100%", background: "none", border: "none", color: danger, padding: "14px 8px", fontSize: 15, fontWeight: 700, cursor: "pointer", textAlign: "left", borderTop: `1px solid ${C.line}` }}>
-            <Icon name="logout" /> {tr("logout", lang)}
-          </button>
-        </div>
-      </div>
-    );
+  const appContextValue = {
+    S, data, save, saveSetting, lang, user, today, dayLog, customToday, setField, setCustom,
+    runs, toggleRun, resetRun, elapsedOf, timers, widgets, templates, showToast, askConfirm,
+    setScreen, setDrawer, drawer, buildReport, activeTemplateText, dark, toggleDark, toggleLang,
+    editingHome, setEditingHome,
   };
-
-  /* ───────── Widgets ───────── */
-  function renderWidget(id) {
-    switch (id) {
-      case "progress":
-        return (
-          <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
-            <Ring pct={pct} size={84} stroke={9} color={accent} track={C.line}>
-              <span style={{ fontSize: 22, color: accent }}>{pct}%</span>
-            </Ring>
-            <div>
-              <div style={{ color: C.sub, fontSize: 13 }}>{tr("progress", lang)}</div>
-              <div style={{ fontSize: 15, color: green, fontWeight: 700, marginTop: 6 }}>{tr("done", lang)}: {doneCount}</div>
-              <div style={{ fontSize: 15, color: totalCount - doneCount > 0 ? warn : C.sub, fontWeight: 700 }}>{tr("pending", lang)}: {totalCount - doneCount}</div>
-            </div>
-          </div>
-        );
-      case "japa": {
-        const on = !!dayLog.chanting16;
-        return (
-          <div>
-            <div style={S.sectionTitle}>{WIDGET_META.japa[lang]}</div>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <div style={{ fontSize: 30, fontWeight: 800, color: accent, fontVariantNumeric: "tabular-nums" }}>{on ? 16 : 0}<span style={{ fontSize: 15, color: C.sub, fontWeight: 600 }}> / 16 {lang === "hi" ? "माला" : "rounds"}</span></div>
-              <div style={S.chk(on)} onClick={() => setField("chanting16", !on)}>{on ? "✓" : ""}</div>
-            </div>
-          </div>
-        );
-      }
-      case "reading":
-        return (
-          <div>
-            <div style={S.sectionTitle}>{WIDGET_META.reading[lang]}</div>
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <input type="number" inputMode="numeric" value={dayLog.reading || ""} placeholder="0"
-                onChange={(e) => setField("reading", e.target.value)}
-                style={{ ...S.input, width: 90, textAlign: "center", fontSize: 22, fontWeight: 800 }} />
-              <span style={{ color: C.sub }}>{lang === "hi" ? "मिनट पढ़ा" : "min read"}</span>
-              <Button ghost onClick={() => setScreen("timers")} style={{ width: "auto", marginLeft: "auto" }}>{lang === "hi" ? "टाइमर" : "Timer"}</Button>
-            </div>
-          </div>
-        );
-      case "goals": {
-        const gs = data.goals || [];
-        return (
-          <Section title={WIDGET_META.goals[lang]} action={lang === "hi" ? "सभी" : "All ›"} onAction={() => setScreen("goals")}>
-            {gs.length === 0 ? (
-              <div style={{ color: C.sub, fontSize: 14 }}>{lang === "hi" ? "कोई लक्ष्य नहीं — जोड़ें" : "No goals yet — add one"}</div>
-            ) : gs.slice(0, 3).map((g) => {
-              const v = dayMetric(data, g.metric, today);
-              const p = g.daily ? Math.min(100, Math.round((v / g.daily) * 100)) : 0;
-              return (
-                <div key={g.id} style={{ marginBottom: 12 }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 5 }}>
-                    <span>{g.label}</span><span style={{ color: C.sub }}>{v}/{g.daily}</span>
-                  </div>
-                  <ProgressBar pct={p} color={p >= 100 ? green : accent} />
-                </div>
-              );
-            })}
-          </Section>
-        );
-      }
-      case "quicktimer":
-        return (
-          <div>
-            <div style={S.sectionTitle}>{WIDGET_META.quicktimer[lang]}</div>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              {timers.slice(0, 3).map((t) => {
-                const running = runs[t.id]?.running;
-                return (
-                  <Chip key={t.id} active={running} onClick={() => { toggleRun(t.id); setScreen("timers"); }} style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                    <Icon name={running ? "pause" : "play"} size={15} /> {t.name}
-                  </Chip>
-                );
-              })}
-            </div>
-          </div>
-        );
-      case "activity": {
-        const days = [...Array(7)].map((_, i) => {
-          const k = dateKey(addDays(new Date(), -(6 - i)));
-          const lg = data.log?.[k] || {}; const cu = data.custom?.[k] || [];
-          const dn = BOOL_IDS.filter((id) => lg[id]).length + cu.filter((c) => c.done).length;
-          const tt = BOOL_IDS.length + cu.length;
-          return { k, pct: tt ? Math.round((dn / tt) * 100) : 0 };
-        });
-        return (
-          <div>
-            <div style={S.sectionTitle}>{WIDGET_META.activity[lang]}</div>
-            <div style={{ display: "flex", alignItems: "flex-end", gap: 8, height: 90 }}>
-              {days.map((x) => (
-                <div key={x.k} style={{ flex: 1, textAlign: "center" }}>
-                  <div style={{ height: Math.max(4, x.pct) + "%", background: accent, borderRadius: 5, transition: "height .3s" }} />
-                  <div style={{ fontSize: 10, color: C.sub, marginTop: 6 }}>{x.k.slice(8)}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-        );
-      }
-      case "calendar": {
-        const d = new Date();
-        const y = d.getFullYear(), m = d.getMonth();
-        const first = new Date(y, m, 1).getDay();
-        const days = new Date(y, m + 1, 0).getDate();
-        const cells = [...Array(first).fill(null), ...[...Array(days)].map((_, i) => i + 1)];
-        return (
-          <div>
-            <div style={S.sectionTitle}>{d.toLocaleDateString("en-IN", { month: "long", year: "numeric" })}</div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 4 }}>
-              {["S", "M", "T", "W", "T", "F", "S"].map((w, i) => <div key={i} style={{ textAlign: "center", fontSize: 10, color: C.sub }}>{w}</div>)}
-              {cells.map((n, i) => {
-                if (!n) return <div key={i} />;
-                const k = dateKey(new Date(y, m, n));
-                const lg = data.log?.[k] || {};
-                const has = BOOL_IDS.some((id) => lg[id]);
-                const isToday = k === today;
-                return (
-                  <div key={i} style={{ textAlign: "center", fontSize: 12, padding: "6px 0", borderRadius: 8, background: isToday ? accent : has ? C.elev : "transparent", color: isToday ? "#1a0e05" : C.text, fontWeight: isToday ? 800 : 500, border: has && !isToday ? `1px solid ${accent}` : "1px solid transparent" }}>{n}</div>
-                );
-              })}
-            </div>
-          </div>
-        );
-      }
-      default: return null;
-    }
-  }
-
-  const Home = () => {
-    const missing = Object.keys(WIDGET_META).filter((k) => !widgets.includes(k));
-    const move = (i, dir) => {
-      const arr = [...widgets];
-      const j = i + dir;
-      if (j < 0 || j >= arr.length) return;
-      [arr[i], arr[j]] = [arr[j], arr[i]];
-      save({ widgets: arr });
-    };
-    return (
-      <>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 14px 0" }}>
-          <div style={{ fontSize: 20, fontWeight: 800 }}>{lang === "hi" ? "डैशबोर्ड" : "Dashboard"}</div>
-          <Button ghost onClick={() => setEditingHome(!editingHome)} style={{ minHeight: 40, padding: "9px 14px", width: "auto", color: editingHome ? accent : C.text }}>
-            {editingHome ? tr("doneEditing", lang) : tr("customize", lang)}
-          </Button>
-        </div>
-        {widgets.map((id, i) => (
-          <Card key={id} style={{ position: "relative", ...(editingHome ? { borderColor: accent, borderStyle: "dashed" } : {}) }}>
-            {editingHome && (
-              <div style={{ position: "absolute", top: 8, right: 8, display: "flex", gap: 6, zIndex: 2 }}>
-                <IconButton aria-label="up" onClick={() => move(i, -1)} style={{ width: 32, height: 32 }}><Icon name="up" size={16} /></IconButton>
-                <IconButton aria-label="down" onClick={() => move(i, 1)} style={{ width: 32, height: 32 }}><Icon name="down" size={16} /></IconButton>
-                <IconButton aria-label="remove" onClick={() => save({ widgets: widgets.filter((w) => w !== id) })} style={{ width: 32, height: 32, color: danger }}><Icon name="x" size={16} /></IconButton>
-              </div>
-            )}
-            {renderWidget(id)}
-          </Card>
-        ))}
-        {editingHome && missing.length > 0 && (
-          <Card>
-            <div style={{ ...S.sectionTitle }}>{tr("addWidget", lang)}</div>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              {missing.map((k) => (
-                <Chip key={k} onClick={() => save({ widgets: [...widgets, k] })} style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  <Icon name="plus" size={15} /> {WIDGET_META[k][lang]}
-                </Chip>
-              ))}
-            </div>
-          </Card>
-        )}
-        {/* the full daily checklist still lives here, below the widgets */}
-        <Card>
-          <div style={S.sectionTitle}>{tr("todaySadhna", lang)}</div>
-          {FIXED.filter((f) => !f.show || f.show(dayLog)).map((f) => (
-            <div key={f.id} style={S.row}>
-              <span style={{ fontSize: 15 }}>{lang === "hi" ? f.hi : f.en}</span>
-              {f.type === "bool" ? (
-                <div style={S.chk(!!dayLog[f.id])} onClick={() => setField(f.id, !dayLog[f.id])}>{dayLog[f.id] ? "✓" : ""}</div>
-              ) : f.type === "time" ? (
-                <input type="time" value={dayLog[f.id] || ""} onChange={(e) => setField(f.id, e.target.value)} onClick={(e) => e.target.showPicker?.()} style={{ ...S.input, width: "auto", padding: "10px 12px" }} />
-              ) : (
-                <input type="number" inputMode="numeric" value={dayLog[f.id] || ""} onChange={(e) => setField(f.id, e.target.value)} placeholder="0" style={{ ...S.input, width: 90, textAlign: "center" }} />
-              )}
-            </div>
-          ))}
-          {customToday.map((c, idx) => (
-            <div key={idx} style={S.row}>
-              <span style={{ fontSize: 15 }}>{c.label}</span>
-              <div style={S.chk(c.done)} onClick={() => { const a = [...customToday]; a[idx] = { ...c, done: !c.done }; setCustom(a); }}>{c.done ? "✓" : ""}</div>
-            </div>
-          ))}
-          <AddCustom />
-        </Card>
-      </>
-    );
-  };
-
-  function AddCustom() {
-    const [val, setVal] = useState("");
-    return (
-      <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-        <input value={val} onChange={(e) => setVal(e.target.value)} placeholder={lang === "hi" ? "अपना कार्य जोड़ें" : "Add a custom task"} style={{ ...S.input, flex: 1 }} />
-        <Button onClick={() => { if (!val.trim()) return; setCustom([...customToday, { label: val.trim(), done: false }]); setVal(""); }} style={{ width: "auto", padding: "0 18px" }}><Icon name="plus" /></Button>
-      </div>
-    );
-  }
-
-  /* ───────── Timers (multiple, background, one page) ───────── */
-  function TimersScreen() {
-    const [show, setShow] = useState(false);
-    const [name, setName] = useState("");
-    const [mode, setMode] = useState("stopwatch");
-    const [mins, setMins] = useState(15);
-
-    const addTimer = () => {
-      if (!name.trim()) return;
-      const id = name.trim().toLowerCase().replace(/\s+/g, "-") + "-" + Date.now().toString(36).slice(-4);
-      save({ timers: [...timers, { id, name: name.trim(), mode, duration: mode === "countdown" ? mins * 60 : 0 }] });
-      setName(""); setMode("stopwatch"); setMins(15); setShow(false);
-      showToast(lang === "hi" ? "टाइमर जोड़ा गया 🙏" : "Timer added 🙏");
-    };
-    const removeTimer = (id) => askConfirm(lang === "hi" ? "टाइमर हटाएं?" : "Delete this timer?", () => { resetRun(id); save({ timers: timers.filter((t) => t.id !== id) }); });
-    const logToReading = (id, sec) => setField("reading", (Number(dayLog.reading) || 0) + Math.round(sec / 60));
-
-    return (
-      <div style={{ padding: "6px 0 8px" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 14px" }}>
-          <div style={{ fontSize: 20, fontWeight: 800 }}>{tr("timers", lang)}</div>
-          <Button onClick={() => setShow(!show)} style={{ width: "auto", padding: "0 16px", minHeight: 42 }}><Icon name="plus" size={18} /> {lang === "hi" ? "नया" : "Add"}</Button>
-        </div>
-
-        {show && (
-          <Card>
-            <div style={S.sectionTitle}>{lang === "hi" ? "नया टाइमर" : "New timer"}</div>
-            <input value={name} onChange={(e) => setName(e.target.value)} placeholder={lang === "hi" ? "नाम (जैसे जप)" : "Name (e.g. Japa)"} style={{ ...S.input, marginBottom: 10 }} />
-            <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
-              <Chip active={mode === "stopwatch"} onClick={() => setMode("stopwatch")} style={{ flex: 1 }}>{lang === "hi" ? "स्टॉपवॉच" : "Stopwatch"}</Chip>
-              <Chip active={mode === "countdown"} onClick={() => setMode("countdown")} style={{ flex: 1 }}>{lang === "hi" ? "काउंटडाउन" : "Countdown"}</Chip>
-            </div>
-            {mode === "countdown" && (
-              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
-                <input type="number" inputMode="numeric" value={mins} onChange={(e) => setMins(Math.max(1, parseInt(e.target.value) || 1))} style={{ ...S.input, width: 90, textAlign: "center" }} />
-                <span style={{ color: C.sub }}>{lang === "hi" ? "मिनट" : "minutes"}</span>
-              </div>
-            )}
-            <Button onClick={addTimer}>{lang === "hi" ? "जोड़ें" : "Add timer"}</Button>
-          </Card>
-        )}
-
-        {timers.map((t) => {
-          const el = elapsedOf(t.id);
-          const running = runs[t.id]?.running;
-          const isCd = t.mode === "countdown";
-          const remaining = isCd ? Math.max(0, t.duration - el) : el;
-          const p = isCd ? (t.duration ? (el / t.duration) * 100 : 0) : 0;
-          const done = isCd && el >= t.duration;
-          const isDefault = DEFAULT_TIMERS.some((d) => d.id === t.id);
-          return (
-            <Card key={t.id}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-                <div style={{ fontWeight: 700, fontSize: 16 }}>{t.name}</div>
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <span style={{ fontSize: 11, color: C.sub, textTransform: "uppercase", letterSpacing: .5 }}>{isCd ? (lang === "hi" ? "काउंटडाउन" : "countdown") : (lang === "hi" ? "स्टॉपवॉच" : "stopwatch")}</span>
-                  {!isDefault && <IconButton aria-label="delete" onClick={() => removeTimer(t.id)} style={{ width: 34, height: 34, color: danger }}><Icon name="trash" size={16} /></IconButton>}
-                </div>
-              </div>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 16 }}>
-                {isCd ? (
-                  <Ring pct={p} size={150} stroke={11} color={done ? green : accent} track={C.line}>
-                    <span style={{ fontSize: 34, color: done ? green : accent }}>{fmtHMS(remaining)}</span>
-                  </Ring>
-                ) : (
-                  <div style={{ fontSize: 52, fontWeight: 800, color: accent, fontVariantNumeric: "tabular-nums" }}>{fmtHMS(el)}</div>
-                )}
-              </div>
-              <div style={{ display: "flex", gap: 10 }}>
-                <Button onClick={() => toggleRun(t.id)} style={{ background: running ? danger : accent }}>
-                  <Icon name={running ? "pause" : "play"} size={18} /> {running ? (lang === "hi" ? "रोकें" : "Pause") : (lang === "hi" ? "शुरू" : "Start")}
-                </Button>
-                <Button ghost onClick={() => resetRun(t.id)} style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}><Icon name="reset" size={18} /> {lang === "hi" ? "रीसेट" : "Reset"}</Button>
-              </div>
-              {t.id === "reading" && el > 30 && (
-                <Button ghost onClick={() => { logToReading(t.id, el); resetRun(t.id); }} style={{ width: "100%", marginTop: 10, color: green }}>
-                  {lang === "hi" ? "पठन में जोड़ें" : `Log ${Math.round(el / 60)} min to Reading`}
-                </Button>
-              )}
-            </Card>
-          );
-        })}
-      </div>
-    );
-  }
-
-  /* ───────── Goals ───────── */
-  function GoalsScreen() {
-    const [show, setShow] = useState(false);
-    const [label, setLabel] = useState("");
-    const [metric, setMetric] = useState("rounds");
-    const [dailyT, setDailyT] = useState(16);
-    const [reminder, setReminder] = useState("21:00");
-    const goals = data.goals || [];
-
-    const addGoal = () => {
-      if (!label.trim()) return;
-      const g = { id: Date.now().toString(36), label: label.trim(), metric, daily: Number(dailyT) || METRICS[metric].target, reminder };
-      save({ goals: [...goals, g] });
-      setLabel(""); setShow(false);
-      showToast(lang === "hi" ? "लक्ष्य जोड़ा गया 🙏" : "Goal added 🙏");
-    };
-    const remove = (id) => askConfirm(lang === "hi" ? "लक्ष्य हटाएं?" : "Delete goal?", () => save({ goals: goals.filter((g) => g.id !== id) }));
-
-    return (
-      <div style={{ padding: "6px 0 8px" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 14px" }}>
-          <div style={{ fontSize: 20, fontWeight: 800 }}>{tr("goals", lang)}</div>
-          <Button onClick={() => setShow(!show)} style={{ width: "auto", padding: "0 16px", minHeight: 42 }}><Icon name="plus" size={18} /> {lang === "hi" ? "नया" : "Add"}</Button>
-        </div>
-
-        {show && (
-          <Card>
-            <div style={S.sectionTitle}>{lang === "hi" ? "नया लक्ष्य" : "New goal"}</div>
-            <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder={lang === "hi" ? "लक्ष्य का नाम" : "Goal name"} style={{ ...S.input, marginBottom: 10 }} />
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
-              {Object.keys(METRICS).map((k) => (
-                <Chip key={k} active={metric === k} onClick={() => { setMetric(k); setDailyT(METRICS[k].target); }}>{METRICS[k][lang]}</Chip>
-              ))}
-            </div>
-            <div style={{ display: "flex", gap: 12, marginBottom: 10 }}>
-              <div style={{ flex: 1 }}>
-                <label style={{ fontSize: 13, color: C.sub, display: "block", marginBottom: 6 }}>{lang === "hi" ? "दैनिक लक्ष्य" : "Daily target"}</label>
-                <input type="number" inputMode="numeric" value={dailyT} onChange={(e) => setDailyT(e.target.value)} style={{ ...S.input, textAlign: "center" }} />
-              </div>
-              <div style={{ flex: 1 }}>
-                <label style={{ fontSize: 13, color: C.sub, display: "block", marginBottom: 6 }}>{lang === "hi" ? "रिमाइंडर" : "Reminder"}</label>
-                <input type="time" value={reminder} onChange={(e) => setReminder(e.target.value)} onClick={(e) => e.target.showPicker?.()} style={S.input} />
-              </div>
-            </div>
-            <Button onClick={addGoal}>{lang === "hi" ? "लक्ष्य जोड़ें" : "Add goal"}</Button>
-          </Card>
-        )}
-
-        {goals.length === 0 && !show && (
-          <Card>
-            <EmptyState text={lang === "hi" ? "अभी कोई लक्ष्य नहीं। ऊपर 'जोड़ें' दबाएं।" : "No goals yet. Tap Add to create one."} />
-          </Card>
-        )}
-
-        {goals.map((g) => {
-          const today_v = dayMetric(data, g.metric, today);
-          const p = g.daily ? Math.min(100, Math.round((today_v / g.daily) * 100)) : 0;
-          const week = rangeMetric(data, g.metric, 7);
-          const month = rangeMetric(data, g.metric, 30);
-          const streak = streakMetric(data, g.metric, g.daily);
-          const unit = METRICS[g.metric]?.unit || "";
-          return (
-            <Card key={g.id}>
-              <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-                <Ring pct={p} size={78} stroke={9} color={p >= 100 ? green : accent} track={C.line}>
-                  <span style={{ fontSize: 18, color: p >= 100 ? green : accent }}>{p}%</span>
-                </Ring>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                    <div style={{ fontWeight: 700, fontSize: 16 }}>{g.label}</div>
-                    <IconButton aria-label="delete" onClick={() => remove(g.id)} style={{ width: 32, height: 32, color: danger }}><Icon name="trash" size={15} /></IconButton>
-                  </div>
-                  <div style={{ fontSize: 14, color: C.sub, marginTop: 4 }}>{lang === "hi" ? "आज" : "Today"}: <b style={{ color: C.text }}>{today_v}/{g.daily} {unit}</b></div>
-                  <div style={{ fontSize: 13, color: accent, marginTop: 4, fontWeight: 700 }}>🔥 {streak} {lang === "hi" ? "दिन की श्रृंखला" : "day streak"}</div>
-                </div>
-              </div>
-              <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
-                <StatTile label={lang === "hi" ? "साप्ताहिक" : "Weekly"} value={week} unit={`/ ${g.daily * 7}`} />
-                <StatTile label={lang === "hi" ? "मासिक" : "Monthly"} value={month} unit={`/ ${g.daily * 30}`} />
-              </div>
-              {g.reminder && <div style={{ fontSize: 12, color: C.sub, marginTop: 10, display: "flex", alignItems: "center", gap: 6 }}><Icon name="bell" size={14} color={C.sub} /> {lang === "hi" ? "रिमाइंडर" : "Reminder"} {g.reminder}</div>}
-            </Card>
-          );
-        })}
-      </div>
-    );
-  }
-
-  /* ───────── Reports (templates + share) ───────── */
-  function ReportsScreen() {
-    const [tab, setTab] = useState("share");
-    const [editing, setEditing] = useState(null); // template being edited
-    const [name, setName] = useState("");
-    const [text, setText] = useState("");
-    const [numbersStr, setNumbersStr] = useState((data.settings?.waNumbers || []).join(", "));
-
-    const activeId = data.settings?.activeTemplate || templates[0]?.id;
-    const preview = buildReport(activeTemplateText());
-    const numbers = data.settings?.waNumbers || [];
-
-    const share = (num) => {
-      const msg = encodeURIComponent(buildReport(activeTemplateText()));
-      window.open(num ? `https://wa.me/${num.replace(/[^\d]/g, "")}?text=${msg}` : `https://wa.me/?text=${msg}`, "_blank");
-    };
-    const startNew = () => { setEditing("new"); setName(""); setText(DEFAULT_TEMPLATE.text); };
-    const startEdit = (t) => { setEditing(t.id); setName(t.name); setText(t.text); };
-    const saveTmpl = () => {
-      if (!name.trim()) return;
-      if (editing === "new") {
-        const t = { id: Date.now().toString(36), name: name.trim(), text };
-        save({ templates: [...templates, t], settings: { ...data.settings, activeTemplate: t.id } });
-      } else {
-        save({ templates: templates.map((t) => (t.id === editing ? { ...t, name: name.trim(), text } : t)) });
-      }
-      setEditing(null);
-      showToast(lang === "hi" ? "सहेजा गया 🙏" : "Saved 🙏");
-    };
-    const delTmpl = (id) => askConfirm(lang === "hi" ? "टेम्पलेट हटाएं?" : "Delete this template?", () => save({ templates: templates.filter((t) => t.id !== id) }));
-
-    return (
-      <div style={{ padding: "6px 0 8px" }}>
-        <div style={{ fontSize: 20, fontWeight: 800, padding: "8px 14px" }}>{tr("reports", lang)}</div>
-        <div style={{ display: "flex", gap: 8, padding: "0 14px 4px" }}>
-          <Chip active={tab === "share"} onClick={() => setTab("share")} style={{ flex: 1 }}>{lang === "hi" ? "शेयर करें" : "Share"}</Chip>
-          <Chip active={tab === "templates"} onClick={() => setTab("templates")} style={{ flex: 1 }}>{lang === "hi" ? "टेम्पलेट" : "Templates"}</Chip>
-        </div>
-
-        {tab === "share" && (
-          <>
-            <Card>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-                <div style={S.sectionTitle}>{lang === "hi" ? "पूर्वावलोकन" : "Preview"}</div>
-                <select value={activeId} onChange={(e) => saveSetting({ activeTemplate: e.target.value })} style={{ ...S.input, width: "auto", padding: "8px 10px" }}>
-                  {templates.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-                </select>
-              </div>
-              <div style={{ background: C.bg, borderRadius: 12, padding: 14, whiteSpace: "pre-wrap", fontSize: 14, lineHeight: 1.5, border: `1px solid ${C.line}` }}>{preview}</div>
-              <Button onClick={() => share()} style={{ marginTop: 14, background: "#25D366", color: "#fff" }}><Icon name="share" size={18} /> {lang === "hi" ? "WhatsApp पर भेजें" : "Share on WhatsApp"}</Button>
-            </Card>
-            <Card>
-              <div style={S.sectionTitle}>{lang === "hi" ? "पूर्वनिर्धारित नंबर" : "Predefined numbers"}</div>
-              {numbers.length > 0 ? (
-                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
-                  {numbers.map((n) => <Chip key={n} onClick={() => share(n)} style={{ display: "flex", alignItems: "center", gap: 6 }}><Icon name="share" size={14} /> {n}</Chip>)}
-                </div>
-              ) : <div style={{ color: C.sub, fontSize: 14, marginBottom: 12 }}>{lang === "hi" ? "नीचे नंबर जोड़ें (कॉमा से अलग)" : "Add numbers below (comma-separated, with country code)"}</div>}
-              <div style={{ display: "flex", gap: 8 }}>
-                <input value={numbersStr} onChange={(e) => setNumbersStr(e.target.value)} placeholder="91XXXXXXXXXX, 91YYYYYYYYYY" style={{ ...S.input, flex: 1 }} />
-                <Button onClick={() => { saveSetting({ waNumbers: numbersStr.split(",").map((x) => x.trim()).filter(Boolean) }); showToast(lang === "hi" ? "सहेजा गया 🙏" : "Saved 🙏"); }} style={{ width: "auto", padding: "0 16px" }}>{lang === "hi" ? "सहेजें" : "Save"}</Button>
-              </div>
-            </Card>
-          </>
-        )}
-
-        {tab === "templates" && (
-          <>
-            {editing ? (
-              <Card>
-                <div style={S.sectionTitle}>{editing === "new" ? (lang === "hi" ? "नया टेम्पलेट" : "New template") : (lang === "hi" ? "संपादित करें" : "Edit template")}</div>
-                <input value={name} onChange={(e) => setName(e.target.value)} placeholder={lang === "hi" ? "टेम्पलेट नाम" : "Template name"} style={{ ...S.input, marginBottom: 10 }} />
-                <textarea value={text} onChange={(e) => setText(e.target.value)} rows={10} style={{ ...S.input, resize: "vertical", fontFamily: "inherit", lineHeight: 1.5 }} />
-                <div style={{ fontSize: 12, color: C.sub, marginTop: 8 }}>{lang === "hi" ? "प्लेसहोल्डर" : "Placeholders"}: {"{date} {name} {rounds} {reading} {hearing} {mangala}"}</div>
-                <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
-                  <Button onClick={saveTmpl}>{lang === "hi" ? "सहेजें" : "Save"}</Button>
-                  <Button ghost onClick={() => setEditing(null)} style={{ flex: 1 }}>{lang === "hi" ? "रद्द करें" : "Cancel"}</Button>
-                </div>
-              </Card>
-            ) : (
-              <div style={{ padding: "0 14px" }}>
-                <Button onClick={startNew} style={{ marginBottom: 12 }}><Icon name="plus" size={18} /> {lang === "hi" ? "नया टेम्पलेट" : "New template"}</Button>
-                {templates.map((t) => (
-                  <Card key={t.id} style={{ margin: "0 0 12px" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-                      <div style={{ fontWeight: 700, fontSize: 16, display: "flex", alignItems: "center", gap: 8 }}>
-                        {t.name}
-                        {activeId === t.id && <span style={{ fontSize: 11, color: "#1a0e05", background: accent, padding: "2px 8px", borderRadius: 999, fontWeight: 700 }}>{lang === "hi" ? "सक्रिय" : "Active"}</span>}
-                      </div>
-                    </div>
-                    <div style={{ color: C.sub, fontSize: 13, whiteSpace: "pre-wrap", maxHeight: 66, overflow: "hidden", marginBottom: 12 }}>{t.text}</div>
-                    <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
-                      <button onClick={() => saveSetting({ activeTemplate: t.id })} style={{ background: "none", border: "none", color: accent, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>{lang === "hi" ? "उपयोग करें" : "Use"}</button>
-                      <button onClick={() => startEdit(t)} style={{ background: "none", border: "none", color: accent, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>{lang === "hi" ? "संपादित" : "Edit"}</button>
-                      {templates.length > 1 && <button onClick={() => delTmpl(t.id)} style={{ background: "none", border: "none", color: danger, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>{lang === "hi" ? "हटाएं" : "Delete"}</button>}
-                    </div>
-                  </Card>
-                ))}
-              </div>
-            )}
-          </>
-        )}
-      </div>
-    );
-  }
-
-  /* ───────── Notifications settings ───────── */
-  function NotificationsScreen() {
-    const [perm, setPerm] = useState(typeof Notification !== "undefined" ? Notification.permission : "unsupported");
-    const req = async () => {
-      if (typeof Notification === "undefined") return;
-      const p = await Notification.requestPermission();
-      setPerm(p);
-      if (p === "granted") { saveSetting({ notificationsEnabled: true }); notify("Notifications on 🙏", "You'll get sadhana & timer reminders."); }
-    };
-    const s = data.settings || {};
-    return (
-      <div style={{ padding: "6px 0 8px" }}>
-        <div style={{ fontSize: 20, fontWeight: 800, padding: "8px 14px" }}>{tr("notifications", lang)}</div>
-        <Card>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <div>
-              <div style={{ fontWeight: 700 }}>{lang === "hi" ? "ब्राउज़र सूचनाएं" : "Browser notifications"}</div>
-              <div style={{ fontSize: 13, color: C.sub, marginTop: 4 }}>{perm === "granted" ? (lang === "hi" ? "सक्षम" : "Enabled") : perm === "denied" ? (lang === "hi" ? "ब्राउज़र में अवरुद्ध" : "Blocked in browser") : (lang === "hi" ? "अनुमति चाहिए" : "Permission needed")}</div>
-            </div>
-            {perm !== "granted" && <Button onClick={req} style={{ width: "auto", padding: "0 18px" }}>{lang === "hi" ? "चालू करें" : "Enable"}</Button>}
-          </div>
-          <div style={{ ...S.row, marginTop: 8 }}>
-            <span>{lang === "hi" ? "लक्ष्य रिमाइंडर" : "Goal reminders"}</span>
-            <Toggle on={!!s.notificationsEnabled} onChange={(v) => saveSetting({ notificationsEnabled: v })} />
-          </div>
-          <div style={{ fontSize: 12, color: C.sub, marginTop: 8 }}>{lang === "hi" ? "टाइमर पूरा होने और लक्ष्य छूटने पर सूचना (ऐप खुला रहने पर सर्वोत्तम)।" : "Fires on timer completion and missed goals. Works best while the app is open — true background push needs a server."}</div>
-        </Card>
-
-        <Card>
-          <div style={S.sectionTitle}>{lang === "hi" ? "स्वचालित WhatsApp रिपोर्ट" : "Auto WhatsApp report"}</div>
-          <div style={S.row}>
-            <span>{lang === "hi" ? "सक्षम करें" : "Enable"}</span>
-            <Toggle on={!!s.autoSendEnabled} onChange={(v) => saveSetting({ autoSendEnabled: v })} />
-          </div>
-          {s.autoSendEnabled && (
-            <div style={{ ...S.row, borderBottom: "none" }}>
-              <span>{lang === "hi" ? "समय" : "Time"}</span>
-              <input type="time" value={s.autoSendTime || "20:00"} onChange={(e) => saveSetting({ autoSendTime: e.target.value })} onClick={(e) => e.target.showPicker?.()} style={{ ...S.input, width: "auto" }} />
-            </div>
-          )}
-        </Card>
-      </div>
-    );
-  }
-
-  /* ───────── Insights ───────── */
-  function InsightsScreen() {
-    const last7 = [...Array(7)].map((_, i) => {
-      const k = dateKey(addDays(new Date(), -(6 - i)));
-      const lg = data.log?.[k] || {}; const cu = data.custom?.[k] || [];
-      const dn = BOOL_IDS.filter((id) => lg[id]).length + cu.filter((c) => c.done).length;
-      const tt = BOOL_IDS.length + cu.length;
-      return { k, pct: tt ? Math.round((dn / tt) * 100) : 0 };
-    });
-    const avg = Math.round(last7.reduce((a, b) => a + b.pct, 0) / 7);
-    return (
-      <div style={{ padding: "6px 0 8px" }}>
-        <div style={{ fontSize: 20, fontWeight: 800, padding: "8px 14px" }}>{tr("insights", lang)}</div>
-        <Card>
-          <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 16 }}>
-            <Ring pct={avg} size={72} stroke={8} color={accent} track={C.line}><span style={{ fontSize: 18, color: accent }}>{avg}%</span></Ring>
-            <div><div style={{ color: C.sub, fontSize: 13 }}>{lang === "hi" ? "7-दिन औसत" : "7-day average"}</div><div style={{ fontSize: 15, fontWeight: 700, marginTop: 4 }}>{lang === "hi" ? "साधना पूर्णता" : "Sadhna completion"}</div></div>
-          </div>
-          <div style={{ display: "flex", alignItems: "flex-end", gap: 10, height: 140 }}>
-            {last7.map((x) => (
-              <div key={x.k} style={{ flex: 1, textAlign: "center" }}>
-                <div style={{ fontSize: 10, color: C.sub, marginBottom: 4 }}>{x.pct}%</div>
-                <div style={{ height: Math.max(4, x.pct) + "%", background: accent, borderRadius: 6, transition: "height .3s" }} />
-                <div style={{ fontSize: 10, color: C.sub, marginTop: 8 }}>{x.k.slice(8)}</div>
-              </div>
-            ))}
-          </div>
-        </Card>
-        <Card>
-          <div style={S.sectionTitle}>{lang === "hi" ? "मेट्रिक्स (आज)" : "Metrics (today)"}</div>
-          {Object.keys(METRICS).map((k) => (
-            <div key={k} style={S.row}>
-              <span>{METRICS[k][lang]}</span>
-              <b style={{ color: accent, fontVariantNumeric: "tabular-nums" }}>{dayMetric(data, k, today)} {METRICS[k].unit}</b>
-            </div>
-          ))}
-        </Card>
-      </div>
-    );
-  }
-
-  /* ───────── AI ───────── */
-  function AIScreen() {
-    const [q, setQ] = useState("");
-    const [chat, setChat] = useState([]);
-    const [loading, setLoading] = useState(false);
-    const ask = async () => {
-      if (!q.trim() || loading) return;
-      const question = q.trim();
-      setChat((c) => [...c, { r: "u", t: question }]); setQ(""); setLoading(true);
-      try {
-        const res = await fetch("/api/ask", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ question }) });
-        const d = await res.json();
-        setChat((c) => [...c, { r: "a", t: d.answer || d.error || "..." }]);
-      } catch (e) { setChat((c) => [...c, { r: "a", t: "Error: " + e.message }]); }
-      setLoading(false);
-    };
-    return (
-      <Card>
-        <div style={S.sectionTitle}>{lang === "hi" ? "प्रभुपाद की पुस्तकों से पूछें" : "Ask from Prabhupada's books"}</div>
-        <div style={{ color: C.sub, fontSize: 13, marginBottom: 14 }}>{lang === "hi" ? "गीता, भागवतम् आदि के आधार पर उत्तर" : "Answers grounded in Gita, Bhagavatam etc."}</div>
-        <div style={{ minHeight: 180, maxHeight: 360, overflowY: "auto", marginBottom: 14 }}>
-          {chat.map((m, i) => (
-            <div key={i} style={{ background: m.r === "u" ? accent : C.bg, color: m.r === "u" ? "#1a0e05" : C.text, padding: "12px 14px", borderRadius: 12, margin: "8px 0", fontSize: 15, whiteSpace: "pre-wrap" }}>{m.t}</div>
-          ))}
-          {loading && <div style={{ color: C.sub, fontSize: 14 }}>…</div>}
-        </div>
-        <div style={{ display: "flex", gap: 10 }}>
-          <input value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => e.key === "Enter" && ask()} placeholder={lang === "hi" ? "अपना प्रश्न लिखें…" : "Type your question…"} style={{ ...S.input, flex: 1 }} />
-          <Button onClick={ask} style={{ width: "auto", padding: "0 20px" }}>{lang === "hi" ? "पूछें" : "Ask"}</Button>
-        </div>
-      </Card>
-    );
-  }
-
-  /* ───────── Notes ───────── */
-  function NotesScreen() {
-    const [editing, setEditing] = useState(null);
-    const [title, setTitle] = useState("");
-    const [body, setBody] = useState("");
-    const [showEditor, setShowEditor] = useState(false);
-    const notes = data.notes || [];
-    const saveNote = () => {
-      if (!title.trim() && !body.trim()) return;
-      const note = { id: editing?.id || Date.now(), title: title.trim(), body: body.trim(), date: Date.now() };
-      save({ notes: editing ? notes.map((n) => (n.id === editing.id ? note : n)) : [...notes, note] });
-      setEditing(null); setTitle(""); setBody(""); setShowEditor(false);
-      showToast(lang === "hi" ? "सहेजा गया 🙏" : "Saved 🙏");
-    };
-    const deleteNote = (id) => askConfirm(lang === "hi" ? "नोट हटाएं?" : "Delete note?", () => save({ notes: notes.filter((n) => n.id !== id) }));
-    const shareNote = (note) => window.open("https://wa.me/?text=" + encodeURIComponent(`${note.title ? note.title + "\n\n" : ""}${note.body}`), "_blank");
-
-    return (
-      <>
-        {showEditor && (
-          <div style={{ position: "fixed", inset: 0, background: C.bg, zIndex: 100, display: "flex", flexDirection: "column" }}>
-            <div style={{ ...S.head }}>
-              <IconButton onClick={() => { setShowEditor(false); setEditing(null); setTitle(""); setBody(""); }}><Icon name="x" /></IconButton>
-              <div style={{ fontWeight: 700, fontSize: 16 }}>{editing ? (lang === "hi" ? "संपादित करें" : "Edit") : (lang === "hi" ? "नया नोट" : "New Note")}</div>
-              <Button onClick={saveNote} style={{ width: "auto", padding: "0 16px", minHeight: 40 }}>{lang === "hi" ? "सहेजें" : "Save"}</Button>
-            </div>
-            <div style={{ flex: 1, padding: 16, overflowY: "auto" }}>
-              <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder={lang === "hi" ? "शीर्षक" : "Title"} style={{ ...S.input, marginBottom: 16, fontWeight: 700, fontSize: 20, border: "none", borderBottom: `1px solid ${C.line}`, borderRadius: 0, padding: "12px 0" }} />
-              <textarea value={body} onChange={(e) => setBody(e.target.value)} placeholder={lang === "hi" ? "अपने विचार लिखें…" : "Write your thoughts..."} style={{ ...S.input, minHeight: "calc(100dvh - 260px)", resize: "none", fontFamily: "inherit", border: "none", fontSize: 16 }} />
-            </div>
-          </div>
-        )}
-        <div style={{ padding: 14 }}>
-          <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 12 }}>{tr("notes", lang)}</div>
-          <Button onClick={() => setShowEditor(true)} style={{ marginBottom: 16 }}><Icon name="plus" size={18} /> {lang === "hi" ? "नया नोट" : "New Note"}</Button>
-          {notes.length === 0 ? (
-            <EmptyState text={lang === "hi" ? "कोई नोट्स नहीं हैं" : "No notes yet"} />
-          ) : notes.map((note) => (
-            <div key={note.id} style={{ background: C.card, borderRadius: 14, padding: 16, marginBottom: 12, border: `1px solid ${C.line}` }}>
-              {note.title && <div style={{ fontWeight: 700, fontSize: 17, marginBottom: 8 }}>{note.title}</div>}
-              <div style={{ color: C.sub, fontSize: 14, marginBottom: 12, whiteSpace: "pre-wrap", lineHeight: 1.5 }}>{note.body.length > 150 ? note.body.slice(0, 150) + "..." : note.body}</div>
-              <div style={{ fontSize: 11, color: C.sub, marginBottom: 12 }}>{new Date(note.date).toLocaleString("en-IN")}</div>
-              <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
-                <button onClick={() => { setEditing(note); setTitle(note.title); setBody(note.body); setShowEditor(true); }} style={{ background: "none", border: "none", color: accent, cursor: "pointer", fontSize: 13, fontWeight: 700 }}>{lang === "hi" ? "संपादित" : "Edit"}</button>
-                <button onClick={() => shareNote(note)} style={{ background: "none", border: "none", color: "#25D366", cursor: "pointer", fontSize: 13, fontWeight: 700 }}>{lang === "hi" ? "शेयर" : "Share"}</button>
-                <button onClick={() => deleteNote(note.id)} style={{ background: "none", border: "none", color: danger, cursor: "pointer", fontSize: 13, fontWeight: 700 }}>{lang === "hi" ? "हटाएं" : "Delete"}</button>
-              </div>
-            </div>
-          ))}
-        </div>
-      </>
-    );
-  }
 
   const screens = {
     home: <Home />,
-    timers: <TimersScreen />,
-    goals: <GoalsScreen />,
-    reports: <ReportsScreen />,
-    insights: <InsightsScreen />,
-    notes: <NotesScreen />,
-    ai: <AIScreen />,
-    notifications: <NotificationsScreen />,
+    timers: <Timers />,
+    goals: <Goals />,
+    reports: <Reports />,
+    insights: <Insights />,
+    notes: <Notes />,
+    ai: <AI />,
+    notifications: <Notifications />,
   };
   const navItems = [
     { id: "home", icon: "home", label: tr("home", lang) },
@@ -1276,30 +407,32 @@ export default function App() {
 
   return (
     <ThemeContext.Provider value={{ C, accent, green, warn, danger }}>
-      <div style={{ background: C.bg, minHeight: "100dvh" }}>
-      <div style={S.page}>
-        <Header title={headerTitle} />
-        <Drawer />
-        {screens[screen]}
-        <div style={S.tabs}>
-          {navItems.map((n) => (
-            <button key={n.id} onClick={() => setScreen(n.id)} style={S.tab(screen === n.id)}>
-              <Icon name={n.icon} size={22} color={screen === n.id ? accent : C.sub} w={screen === n.id ? 2.4 : 2} />
-              {n.label}
-            </button>
-          ))}
+      <AppContext.Provider value={appContextValue}>
+        <div style={{ background: C.bg, minHeight: "100dvh" }}>
+          <div style={S.page}>
+            <Header title={headerTitle} />
+            <Drawer />
+            {screens[screen]}
+            <div style={S.tabs}>
+              {navItems.map((n) => (
+                <button key={n.id} onClick={() => setScreen(n.id)} style={S.tab(screen === n.id)}>
+                  <Icon name={n.icon} size={22} color={screen === n.id ? accent : C.sub} w={screen === n.id ? 2.4 : 2} />
+                  {n.label}
+                </button>
+              ))}
+            </div>
+            <Toast message={toast} />
+            <ConfirmSheet
+              open={!!confirmState}
+              message={confirmState?.message}
+              confirmLabel={lang === "hi" ? "हटाएं" : "Delete"}
+              cancelLabel={lang === "hi" ? "रद्द करें" : "Cancel"}
+              onConfirm={() => { confirmState?.onConfirm(); setConfirmState(null); }}
+              onCancel={() => setConfirmState(null)}
+            />
+          </div>
         </div>
-        <Toast message={toast} />
-        <ConfirmSheet
-          open={!!confirmState}
-          message={confirmState?.message}
-          confirmLabel={lang === "hi" ? "हटाएं" : "Delete"}
-          cancelLabel={lang === "hi" ? "रद्द करें" : "Cancel"}
-          onConfirm={() => { confirmState?.onConfirm(); setConfirmState(null); }}
-          onCancel={() => setConfirmState(null)}
-        />
-      </div>
-      </div>
+      </AppContext.Provider>
     </ThemeContext.Provider>
   );
 }
