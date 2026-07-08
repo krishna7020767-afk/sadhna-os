@@ -29,8 +29,6 @@ export const T = {
   goals: { en: "Goals", hi: "लक्ष्य" },
   reports: { en: "Reports", hi: "रिपोर्ट" },
   insights: { en: "Insights", hi: "विश्लेषण" },
-  notes: { en: "Notes", hi: "नोट्स" },
-  ai: { en: "Ask AI", hi: "AI से पूछें" },
   notifications: { en: "Notifications", hi: "सूचनाएं" },
   todaySadhna: { en: "Today's Sadhna", hi: "आज की साधना" },
   progress: { en: "Today's Progress", hi: "आज की प्रगति" },

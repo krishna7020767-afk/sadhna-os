@@ -18,8 +18,6 @@ import { Goals } from "./screens/Goals";
 import { Reports } from "./screens/Reports";
 import { Notifications } from "./screens/Notifications";
 import { Insights } from "./screens/Insights";
-import { AI } from "./screens/AI";
-import { Notes } from "./screens/Notes";
 
 /* Quote + Photo pairs for the splash screen */
 const QUOTES = [
@@ -366,8 +364,18 @@ export default function App() {
       mangala: dayLog.mangalAarti ? "✅ " + dayLog.mangalAarti : "❌",
     };
     let out = (tmplText || DEFAULT_TEMPLATE.text).replace(/\{(\w+)\}/g, (m, k) => (k in map ? map[k] : ""));
-    const done = customToday.filter((c) => c.done);
-    if (done.length) out += "\n\n" + done.map((c) => `✅ ${c.label}`).join("\n");
+    // {{Task Label}} placeholders resolve against the user's own custom tasks — lets
+    // report templates reference tasks by name instead of a fixed placeholder set
+    const referenced = new Set();
+    out = out.replace(/\{\{([^{}]+)\}\}/g, (m, rawLabel) => {
+      const label = rawLabel.trim();
+      const task = customToday.find((c) => c.label === label);
+      if (!task) return m;
+      referenced.add(label);
+      return task.done ? "✅ Done" : "❌ Pending";
+    });
+    const unreferencedDone = customToday.filter((c) => c.done && !referenced.has(c.label));
+    if (unreferencedDone.length) out += "\n\n" + unreferencedDone.map((c) => `✅ ${c.label}`).join("\n");
     return out;
   }
 
@@ -406,8 +414,6 @@ export default function App() {
     goals: <Goals />,
     reports: <Reports />,
     insights: <Insights />,
-    notes: <Notes />,
-    ai: <AI />,
     notifications: <Notifications />,
   };
   const navItems = [
@@ -416,7 +422,7 @@ export default function App() {
     { id: "goals", icon: "goal", label: tr("goals", lang) },
     { id: "reports", icon: "report", label: tr("reports", lang) },
   ];
-  const headerTitle = { insights: tr("insights", lang), notes: tr("notes", lang), ai: tr("ai", lang), notifications: tr("notifications", lang) }[screen];
+  const headerTitle = { insights: tr("insights", lang), notifications: tr("notifications", lang) }[screen];
 
   return (
     <ThemeContext.Provider value={{ C, accent, accentDeep, accentGradient, green, warn, danger }}>

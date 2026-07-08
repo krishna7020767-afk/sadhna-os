@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useApp } from "../appContext";
 import { useTheme, fontDisplay } from "../theme";
 import { tr, DEFAULT_TEMPLATE } from "../lib/constants";
@@ -7,14 +7,17 @@ import { Button } from "../components/Button";
 import { Chip } from "../components/Chip";
 import { Icon } from "../components/Icon";
 
+const FIXED_PLACEHOLDERS = ["date", "name", "rounds", "reading", "hearing", "mangala"];
+
 export function Reports() {
-  const { S, lang, data, templates, save, saveSetting, showToast, askConfirm, buildReport, activeTemplateText } = useApp();
+  const { S, lang, data, templates, save, saveSetting, showToast, askConfirm, buildReport, activeTemplateText, customToday } = useApp();
   const { C, accent, danger } = useTheme();
   const [tab, setTab] = useState("share");
   const [editing, setEditing] = useState(null); // template being edited
   const [name, setName] = useState("");
   const [text, setText] = useState("");
   const [numbersStr, setNumbersStr] = useState((data.settings?.waNumbers || []).join(", "));
+  const textareaRef = useRef(null);
 
   // data.settings arrives asynchronously from Supabase after this component may have
   // already mounted with the useState initializer above — resync once the real row lands
@@ -45,6 +48,14 @@ export function Reports() {
     showToast(lang === "hi" ? "सहेजा गया 🙏" : "Saved 🙏");
   };
   const delTmpl = (id) => askConfirm(lang === "hi" ? "टेम्पलेट हटाएं?" : "Delete this template?", () => save({ templates: templates.filter((t) => t.id !== id) }));
+  const insertPlaceholder = (token) => {
+    const el = textareaRef.current;
+    if (!el) { setText((t) => t + token); return; }
+    const start = el.selectionStart ?? text.length;
+    const end = el.selectionEnd ?? text.length;
+    setText(text.slice(0, start) + token + text.slice(end));
+    requestAnimationFrame(() => { el.focus(); el.selectionStart = el.selectionEnd = start + token.length; });
+  };
 
   return (
     <div style={{ padding: "6px 0 8px" }}>
@@ -87,8 +98,16 @@ export function Reports() {
             <Card>
               <div style={S.sectionTitle}>{editing === "new" ? (lang === "hi" ? "नया टेम्पलेट" : "New template") : (lang === "hi" ? "संपादित करें" : "Edit template")}</div>
               <input value={name} onChange={(e) => setName(e.target.value)} placeholder={lang === "hi" ? "टेम्पलेट नाम" : "Template name"} style={{ ...S.input, marginBottom: 10 }} />
-              <textarea value={text} onChange={(e) => setText(e.target.value)} rows={10} style={{ ...S.input, resize: "vertical", fontFamily: "inherit", lineHeight: 1.5 }} />
-              <div style={{ fontSize: 12, color: C.sub, marginTop: 8 }}>{lang === "hi" ? "प्लेसहोल्डर" : "Placeholders"}: {"{date} {name} {rounds} {reading} {hearing} {mangala}"}</div>
+              <textarea ref={textareaRef} value={text} onChange={(e) => setText(e.target.value)} rows={10} style={{ ...S.input, resize: "vertical", fontFamily: "inherit", lineHeight: 1.5 }} />
+              <div style={{ fontSize: 12, color: C.sub, margin: "10px 0 6px" }}>{lang === "hi" ? "जोड़ने के लिए टैप करें" : "Tap to insert"}</div>
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                {FIXED_PLACEHOLDERS.map((k) => (
+                  <Chip key={k} onClick={() => insertPlaceholder(`{${k}}`)} style={{ fontSize: 12, padding: "6px 10px", minHeight: "auto" }}>{`{${k}}`}</Chip>
+                ))}
+                {customToday.map((c) => (
+                  <Chip key={c.label} onClick={() => insertPlaceholder(`{{${c.label}}}`)} style={{ fontSize: 12, padding: "6px 10px", minHeight: "auto" }}>{`{{${c.label}}}`}</Chip>
+                ))}
+              </div>
               <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
                 <Button onClick={saveTmpl}>{lang === "hi" ? "सहेजें" : "Save"}</Button>
                 <Button ghost onClick={() => setEditing(null)} style={{ flex: 1 }}>{lang === "hi" ? "रद्द करें" : "Cancel"}</Button>

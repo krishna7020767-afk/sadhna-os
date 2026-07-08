@@ -33,10 +33,15 @@ export function fmtHMS(totalSec) {
 
 /* Notification helper (best-effort; real push needs a server) */
 // ponytail: local Notification API only — fires while a tab is open. Add web-push + a server cron for true background alerts.
-export function notify(title, body) {
+export async function notify(title, body) {
   try {
-    if ("Notification" in window && Notification.permission === "granted") {
-      new Notification(title, { body, icon: "/p1.jpg" });
+    if (!("Notification" in window) || Notification.permission !== "granted") return;
+    // installed PWAs (esp. on mobile) reject `new Notification()` directly — it must
+    // go through the service worker registration instead
+    if ("serviceWorker" in navigator) {
+      const reg = await navigator.serviceWorker.ready;
+      if (reg?.showNotification) { reg.showNotification(title, { body, icon: "/p1.jpg" }); return; }
     }
+    new Notification(title, { body, icon: "/p1.jpg" });
   } catch { /* ignore */ }
 }

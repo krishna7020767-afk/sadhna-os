@@ -13,8 +13,6 @@ export function Drawer() {
   const items = [
     { s: "insights", icon: "chart", label: tr("insights", lang) },
     { s: "goals", icon: "goal", label: tr("goals", lang) },
-    { s: "notes", icon: "note", label: tr("notes", lang) },
-    { s: "ai", icon: "ai", label: tr("ai", lang) },
     { s: "notifications", icon: "bell", label: tr("notifications", lang) },
   ];
   return (
