@@ -273,6 +273,9 @@ export default function App() {
     const next = pendingSaveRef.current;
     if (!next || !user) return;
     pendingSaveRef.current = null;
+    // supabase-js query builders are lazy thenables — the fetch is only actually sent
+    // once something consumes them as a promise. Without this .then(), upsert() builds
+    // the request and silently never fires it.
     supabase.from("user_data").upsert({
       id: user.id,
       name: user.displayName || "",
@@ -281,7 +284,7 @@ export default function App() {
       timers: next.timers, goals: next.goals, widgets: next.widgets, templates: next.templates,
       runs: next.runs,
       updated_at: new Date().toISOString(),
-    });
+    }).then(({ error }) => { if (error) console.error("Sadhna OS save failed:", error.message); });
   };
   const save = (patch) => {
     if (!user) return;
