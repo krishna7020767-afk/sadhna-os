@@ -7,7 +7,7 @@ import { Button } from "../components/Button";
 import { Chip } from "../components/Chip";
 import { Icon } from "../components/Icon";
 
-const FIXED_PLACEHOLDERS = ["date", "name", "rounds", "reading", "hearing", "mangala"];
+const FIXED_PLACEHOLDERS = ["tasks", "date", "name", "rounds", "reading", "hearing", "mangala"];
 
 export function Reports() {
   const { S, lang, data, templates, save, saveSetting, showToast, askConfirm, buildReport, activeTemplateText, customToday } = useApp();
@@ -75,7 +75,7 @@ export function Reports() {
               </select>
             </div>
             <div style={{ background: C.bg, borderRadius: 12, padding: 14, whiteSpace: "pre-wrap", fontSize: 14, lineHeight: 1.5, border: `1px solid ${C.line}` }}>{preview}</div>
-            <Button onClick={() => share()} style={{ marginTop: 14, background: "#25D366", color: "#fff" }}><Icon name="share" size={18} /> {lang === "hi" ? "WhatsApp पर भेजें" : "Share on WhatsApp"}</Button>
+            <Button onClick={() => numbers[0] ? share(numbers[0]) : showToast(lang === "hi" ? "पहले नीचे एक नंबर सहेजें 🙏" : "Save a number below first 🙏")} style={{ marginTop: 14, background: "#25D366", color: "#fff" }}><Icon name="share" size={18} /> {lang === "hi" ? "WhatsApp पर भेजें" : "Send on WhatsApp"}</Button>
           </Card>
           <Card>
             <div style={S.sectionTitle}>{lang === "hi" ? "पूर्वनिर्धारित नंबर" : "Predefined numbers"}</div>

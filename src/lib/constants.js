@@ -64,7 +64,6 @@ export const DEFAULT_TIMERS = [
   { id: "reading", name: "Reading", mode: "stopwatch", duration: 0 },
   { id: "hearing", name: "Hearing", mode: "stopwatch", duration: 0 },
   { id: "kirtan", name: "Kirtan", mode: "stopwatch", duration: 0 },
-  { id: "mangala", name: "Mangala Arati", mode: "countdown", duration: 1800 },
 ];
 export const WIDGET_META = {
   progress: { en: "Progress", hi: "प्रगति" },
@@ -79,5 +78,5 @@ export const DEFAULT_WIDGETS = ["progress", "japa", "reading", "goals", "quickti
 export const DEFAULT_TEMPLATE = {
   id: "std",
   name: "Standard",
-  text: "Hare Krishna Prabhu 🙏\nDandwat Pranam\n\nSadhna Report — {date}\n\nRounds: {rounds}\nReading: {reading} min\nHearing: {hearing} min\nMorning program: {mangala}\n\nAll glories to Srila Prabhupada 🙏",
+  text: "Hare Krishna Prabhu 🙏\nDandwat Pranam\n\nSadhna Report — {date}\n\n{tasks}\n\nAll glories to Srila Prabhupada 🙏",
 };

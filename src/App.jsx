@@ -1,10 +1,11 @@
 import { useEffect, useState, useRef } from "react";
 import { supabase } from "./supabaseClient";
 import { mapUser, dateKey, prettyDate, notify } from "./lib/helpers";
+import { subscribeToPush } from "./lib/push";
 import { getPalette, ThemeContext, accent, accentDeep, accentGradient, green, warn, danger, fontBody, fontDisplay } from "./theme";
 import { AppContext } from "./appContext";
 import {
-  EMPTY, DEFAULT_TIMERS, DEFAULT_WIDGETS, DEFAULT_TEMPLATE, tr,
+  EMPTY, DEFAULT_TIMERS, DEFAULT_WIDGETS, DEFAULT_TEMPLATE, tr, FIXED,
 } from "./lib/constants";
 import { dayMetric } from "./lib/metrics";
 import { Toast } from "./components/Toast";
@@ -158,7 +159,7 @@ export default function App() {
   const [drawer, setDrawer] = useState(false);
   const [editingHome, setEditingHome] = useState(false);
   const [data, setData] = useState(EMPTY);
-  const [now, setNow] = useState(Date.now());
+  const [now, setNow] = useState(() => Date.now());
   const [toast, setToast] = useState(null);
   const toastTimer = useRef(null);
   const showToast = (msg) => {
@@ -213,6 +214,14 @@ export default function App() {
     return () => clearInterval(t);
   }, []);
 
+  // if this device already granted notifications, (re)register it for background push
+  // so a fresh browser/reinstall or a changed timezone stays subscribed
+  useEffect(() => {
+    if (user && typeof Notification !== "undefined" && Notification.permission === "granted") {
+      subscribeToPush(user);
+    }
+  }, [user]);
+
   // countdown completion detection
   useEffect(() => {
     (data.timers?.length ? data.timers : DEFAULT_TIMERS).forEach((t) => {
@@ -223,15 +232,18 @@ export default function App() {
       if (elapsed >= t.duration && !notifiedRef.current[t.id]) {
         notifiedRef.current[t.id] = true;
         notify(`${t.name} complete`, "Hare Krishna 🙏 Your timer finished.");
+        // eslint-disable-next-line react-hooks/immutability -- save() runs inside the effect callback (post-render), so the const TDZ never triggers at runtime
         save({ runs: { ...runs, [t.id]: { accumulated: t.duration, running: false, startedAt: null } } });
       }
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- save is stable for the lifetime of a user session
   }, [now, runs, data.timers]);
 
-  // goal reminders (best-effort while app open)
+  // goal reminders — client-side fallback for when this device has NO push subscription
+  // (server push owns them otherwise, so we don't double-notify)
   useEffect(() => {
     if (!user || !data.settings?.notificationsEnabled) return;
+    if (localStorage.getItem("pushSubscribed") === "1") return;
     const check = () => {
       const d = new Date();
       const cur = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
@@ -250,19 +262,26 @@ export default function App() {
     return () => clearInterval(t);
   }, [user, data.goals, data.settings?.notificationsEnabled, data, today]);
 
-  // scheduled WhatsApp report prompt (kept from before)
+  // daily "send your sadhana report" reminder — fires a notification at the configured
+  // time. Re-checks on an interval so it still fires if the app was already open beforehand.
   useEffect(() => {
     if (!user || !data.settings?.autoSendEnabled) return;
-    const nowD = new Date();
-    const cur = `${String(nowD.getHours()).padStart(2, "0")}:${String(nowD.getMinutes()).padStart(2, "0")}`;
-    const scheduled = data.settings.autoSendTime || "20:00";
-    if (cur >= scheduled && localStorage.getItem("lastReportSent") !== today) {
-      const msg = buildReport(activeTemplateText());
-      const ok = window.confirm(lang === "hi" ? "समय हो गया है! WhatsApp रिपोर्ट भेजें?" : "It's time! Send your Sadhna report on WhatsApp?");
-      if (ok) { localStorage.setItem("lastReportSent", today); window.open("https://wa.me/?text=" + encodeURIComponent(msg), "_blank"); }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, data.settings?.autoSendEnabled]);
+    if (localStorage.getItem("pushSubscribed") === "1") return; // server push owns this device
+    const check = () => {
+      const d = new Date();
+      const cur = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+      const scheduled = data.settings.autoSendTime || "20:00";
+      if (cur >= scheduled && localStorage.getItem("lastReportNotif") !== today) {
+        localStorage.setItem("lastReportNotif", today);
+        const title = data.settings.autoSendTitle?.trim() || (lang === "hi" ? "साधना रिपोर्ट भेजें 🙏" : "Send your Sadhana Report 🙏");
+        const body = data.settings.autoSendMessage?.trim() || (lang === "hi" ? "आज की साधना रिपोर्ट भेजने का समय।" : "Time to send your daily Sadhana Report.");
+        notify(title, body);
+      }
+    };
+    check();
+    const t = setInterval(check, 30000);
+    return () => clearInterval(t);
+  }, [user, data.settings?.autoSendEnabled, data.settings?.autoSendTime, data.settings?.autoSendTitle, data.settings?.autoSendMessage, today, lang]);
 
   const pendingSaveRef = useRef(null);
   const saveTimer = useRef(null);
@@ -327,10 +346,12 @@ export default function App() {
     const r = runs[id] || { accumulated: 0, running: false, startedAt: null };
     let next;
     if (r.running) {
+      // eslint-disable-next-line react-hooks/purity -- toggleRun is a click handler, never called during render
       const acc = (r.accumulated || 0) + (r.startedAt ? (Date.now() - r.startedAt) / 1000 : 0);
       next = { ...runs, [id]: { accumulated: acc, running: false, startedAt: null } };
     } else {
       // only one timer may run at a time — pause whichever other timer is active
+      // eslint-disable-next-line react-hooks/purity -- toggleRun is a click handler, never called during render
       const startedAt = Date.now();
       next = { ...runs };
       for (const key of Object.keys(next)) {
@@ -355,6 +376,16 @@ export default function App() {
     return t.text;
   }
   function buildReport(tmplText) {
+    // {tasks} auto-expands to every logged sadhana item (fixed + custom) so the report
+    // adapts to whatever the user configures — add a task, it shows up automatically.
+    const taskLines = [];
+    FIXED.forEach((f) => {
+      const v = dayLog[f.id];
+      if (f.type === "bool") { if (v) taskLines.push(`${f[lang]}: ✅`); }
+      else if (f.type === "time") { if (v) taskLines.push(`${f[lang]}: ${v}`); }
+      else if (f.type === "number") { if (Number(v) > 0) taskLines.push(`${f[lang]}: ${Number(v)}`); }
+    });
+    customToday.forEach((c) => taskLines.push(`${c.label}: ${c.done ? "✅" : "❌"}`));
     const map = {
       date: prettyDate(today),
       name: user?.displayName || "",
@@ -362,6 +393,7 @@ export default function App() {
       reading: String(Number(dayLog.reading) || 0),
       hearing: String(Number(dayLog.hearingExtraDuration) || 0),
       mangala: dayLog.mangalAarti ? "✅ " + dayLog.mangalAarti : "❌",
+      tasks: taskLines.join("\n") || (lang === "hi" ? "आज कोई कार्य दर्ज नहीं" : "No items logged yet"),
     };
     let out = (tmplText || DEFAULT_TEMPLATE.text).replace(/\{(\w+)\}/g, (m, k) => (k in map ? map[k] : ""));
     // {{Task Label}} placeholders resolve against the user's own custom tasks — lets
